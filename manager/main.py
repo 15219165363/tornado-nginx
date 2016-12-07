@@ -9,15 +9,19 @@ from tornado.ioloop import IOLoop
 from tornado import web 
 import sys
 import os
+import traceback
 
 _root = os.path.dirname(os.path.abspath(__file__))
 os.chdir(_root)
-
 try:
 	import manager
 except ImportError:
 	sys.path.append(os.path.join(_root, ".."))
 
+from lib.tools import init_logger
+
+
+LOG_LEVEL = "DEBUG"
 
 default_encoding = 'utf-8'
 if sys.getdefaultencoding() != default_encoding:
@@ -47,21 +51,23 @@ class Application(web.Application):
 		return None
 
 
+def main():
+	try:
+		if not os.path.exists('/zzw/manager/logfiles'):
+			os.makedirs('/zzw/manager/logfiles')
 
-#class MainHandler(tornado.web.RequestHandler): 
-	#def get(self): self.write("Hello, world")
-#	def get(self):
-#		pass
+		init_logger('all_logs', LOG_LEVEL, "/zzw/manager/logfiles/all_logs.log")
 
-#application = tornado.web.Application([
- #   (r"/aa", MainHandler),
-#]) 
+		http_server = HTTPServer(Application(),xheaders=True)
+		http_server.bind(8888, '127.0.0.1')
+		http_server.start(1)
+		IOLoop.instance().start()
+
+	except Exception,e:
+		exstr = traceback.format_exc()
+		#logger.log('the process is running unnormal... \n error_traceback == %s' % str(exstr))
+		print exstr
 
 if __name__ == "__main__":
-    #application.listen(8080)
-    #tornado.ioloop.IOLoop.instance().start()
-    http_server = HTTPServer(Application(),xheaders=True)
-    http_server.bind(8888, '127.0.0.1')
-    http_server.start(1)
+    main()
 
-    IOLoop.instance().start()
