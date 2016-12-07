@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to tornado+nginx!</h1>
+
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+
+<script >
+//js动态创建form 提交表单
+function formSubmit(elementValue) {
+    var turnForm = document.createElement("form");   
+    //一定要加入到body中！！   
+    document.body.appendChild(turnForm);
+    turnForm.method = 'post';
+    turnForm.action = 'manager/forma';
+    turnForm.target = '_blank';
+ //创建隐藏表单
+ var newElement = document.createElement("input");
+    newElement.setAttribute("name","id");
+    newElement.setAttribute("type","hidden");
+    newElement.setAttribute("value",elementValue);
+    turnForm.appendChild(newElement);
+ 
+    turnForm.submit();
+}
+</script>
+<a href="javascript:formSubmit('1')">点击我</a>
+</html>
