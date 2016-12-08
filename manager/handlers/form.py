@@ -3,6 +3,8 @@
 #
 import tornado
 import logging
+from lib.tools import init_logger
+from lib.handler import APIHandler
 
 logger1 = logging.getLogger("all_logs")
 class FormHandler(tornado.web.RequestHandler): 
@@ -22,17 +24,23 @@ class SingleFormHandler(tornado.web.RequestHandler):
 			pass
 
 
-class LoginHandler(tornado.web.RequestHandler): 
-
+class LoginHandler(APIHandler): 
 	def get(self):
-		print "bbbbbb"		
+		pass
 
 	def post(self):
 		logger1.info("------")
+		print "------"
 		username = self.get_argument('username', None)
 		password = self.get_argument('password', None)
-		print username
-		print password
+
+		if username == "a" and password == "123":
+			res = "ok"
+		else:
+			res = "err"
+
+		s = {'username':username, 'res':res}
+		self.finish(s)
 
 handlers = [(r"/forma", FormHandler),
 			(r"/singform/(.*)", SingleFormHandler),
