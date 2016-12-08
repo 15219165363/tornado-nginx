@@ -5,6 +5,7 @@ import tornado
 import logging
 from lib.tools import init_logger
 from lib.handler import APIHandler
+from lib.exceptions import HTTPAPIError
 
 logger1 = logging.getLogger("all_logs")
 class FormHandler(tornado.web.RequestHandler): 
@@ -37,7 +38,8 @@ class LoginHandler(APIHandler):
 		if username == "a" and password == "123":
 			res = "ok"
 		else:
-			res = "err"
+			#res = "err"
+			raise HTTPAPIError(401, error_type = 'login_err')
 
 		s = {'username':username, 'res':res}
 		self.finish(s)
