@@ -2,6 +2,7 @@
 #
 
 import logging
+import traceback
 from lib import exceptions
 from tornado.web import RequestHandler as BaseRequestHandler, HTTPError
 
