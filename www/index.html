@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Welcome to nginx!</title>
+
+<title>Tornado+Nginx</title>
+<link rel="shortcut icon" href="/favicon.ico" />
+
 <style>
     body {
         width: 35em;
@@ -9,32 +12,63 @@
         font-family: Tahoma, Verdana, Arial, sans-serif;
     }
 </style>
+
+<script type="text/javascript" src="/js-lib/jquery-1.11.1.min.js"></script>
+<script type="text/javascript" src="/js-lib/jquery.validate.min.js"></script>
+<script type="text/javascript" src="/js-code/messages_zh.js"></script>
+
 </head>
 <body>
-<h1>Welcome to tornado+nginx!</h1>
-
-
+<h1>Welcome to Tornado+Nginx!</h1>
 <p><em>Thank you for using nginx.</em></p>
+
+<form id="login">       
+
+    <p>用户名  : <input type="text" name="username" id="username"></p>
+    <p>密码   : <input type="text" name="password" id="password"></p>
+    <input type="button" value="登录" class="btn" onclick = "Login()" />
+
+</form>
+
 </body>
 
-<script >
-//js动态创建form 提交表单
-function formSubmit(elementValue) {
-    var turnForm = document.createElement("form");   
-    //一定要加入到body中！！   
-    document.body.appendChild(turnForm);
-    turnForm.method = 'post';
-    turnForm.action = 'manager/forma';
-    turnForm.target = '_blank';
- //创建隐藏表单
- var newElement = document.createElement("input");
-    newElement.setAttribute("name","id");
-    newElement.setAttribute("type","hidden");
-    newElement.setAttribute("value",elementValue);
-    turnForm.appendChild(newElement);
- 
-    turnForm.submit();
+<script>
+
+function Login(){
+
+    var username = document.getElementById("username").value;
+    var password = document.getElementById("password").value;
+    console.log(username);
+    console.log(password);
+    alert("======");
+    if(username == ""  ){
+        alert("用户名不能为空");
+        return false;
+    }
+    if(password == ""  ){
+        alert("密码不能为空");
+        return false;
+    }
+
+    $.post("manager/login", {
+        username: username,
+        password: password
+    },
+    function (data) {
+        if (data.result == 'success') {
+           // $('#modal-xiugaimima').modal('hide');
+           // alertConfirm(jquery_gettext('Tip'),jquery_gettext('Change password successfully'));
+        }else{
+            //alertConfirm(jquery_gettext('Change password failed'),jquery_gettext('Wrong old password'));
+        }
+    },
+    "json");
+
+   //document.getElementById("login").submit();
+
 }
+
 </script>
-<a href="javascript:formSubmit('1')">点击我</a>
+
+
 </html>

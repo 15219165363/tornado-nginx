@@ -21,5 +21,19 @@ class SingleFormHandler(tornado.web.RequestHandler):
 	def post(self):
 			pass
 
+
+class LoginHandler(tornado.web.RequestHandler): 
+
+	def get(self):
+		print "bbbbbb"		
+
+	def post(self):
+		logger1.info("------")
+		username = self.get_argument('username', None)
+		password = self.get_argument('password', None)
+		print username
+		print password
+
 handlers = [(r"/forma", FormHandler),
-			(r"/singform/(.*)", SingleFormHandler)]
+			(r"/singform/(.*)", SingleFormHandler),
+			(r"/login", LoginHandler)]
