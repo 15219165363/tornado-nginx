@@ -60,7 +60,7 @@ def gen_auth_key():
 			return	
 	return;
 
-class FormHandler(tornado.web.RequestHandler): 
+class FormHandler(APIHandler): 
 	def get(self): 
 		self.write("Hello, world")
 

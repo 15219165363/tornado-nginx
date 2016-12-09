@@ -5,7 +5,14 @@
 
 import logging
 import logging.handlers
+import re
+import rsa
+import base64
+import time
 
+
+AUTH_PRI_KEY = "/etc/manager/priv/authkey.key"
+AUTH_PUB_KEY = "/etc/manager/priv/authkey.pub";
 
 def init_logger(name, level = "DEBUG", f = None):
 	LEVEL = getattr(logging, level.upper(), None)
@@ -27,3 +34,34 @@ def init_logger(name, level = "DEBUG", f = None):
 		logger.addHandler(sh)
 	return logger
 
+
+mng_ticket = re.compile("^(MNG:\S+)::([^:\s]+)$");
+mng_plain = re.compile("^MNG:(\S+):([A-Z0-9]{8})$")
+
+def verify_ticket(ticket):
+	res = mng_ticket.match(ticket);
+	if res != None:
+		plain = res.groups()[0]
+		sig = res.groups()[1]
+
+		with open(AUTH_PUB_KEY) as publickfile:
+			p = publickfile.read()
+			pubkey = rsa.PublicKey.load_pkcs1(p)
+			publickfile.close()
+
+		#check the signature first
+		try:
+			rsa.verify(plain, base64.b64decode(sig), pubkey)
+		except rsa.VerificationError:
+			return False
+
+		#print "vertify signature success!"
+		res = mng_plain.match(plain)
+		if (res != None):
+			timestamp = res.groups()[1]
+			ttime = int(timestamp, 16)
+			age =  time.time() - ttime
+			if (age > -300):
+				return True
+
+	return False;

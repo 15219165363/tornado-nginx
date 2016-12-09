@@ -3,8 +3,10 @@
 
 import logging
 import traceback
-from lib import exceptions
 from tornado.web import RequestHandler as BaseRequestHandler, HTTPError
+
+from lib import exceptions
+from lib.tools import verify_ticket
 
 class BaseHandler(BaseRequestHandler):
 	def get(self, *args, **kwargs):
@@ -13,6 +15,17 @@ class BaseHandler(BaseRequestHandler):
 			self.post(*args, **kwargs)
 		else:
 			raise exceptions.HTTPAPIError(500)
+
+	#prepare函数里面可以对其他的请求先进行ticket的认证,认证通过后才允许继续
+	def prepare(self):
+		req_uri = self.request.uri
+		if req_uri != "/manager/login":
+			ticket = self.get_ticket()
+			if (ticket is None or not verify_ticket(ticket)):
+				raise exceptions.HTTPAPIError(401, error_type = 'ticket_verify_failed')		
+
+	def get_ticket(self):
+		return self.get_secure_cookie('MNGAuth') 				
 
 class APIHandler(BaseHandler):
 	def get_current_user(self):
