@@ -13,13 +13,13 @@ from lib.handler import APIHandler
 from lib.exceptions import HTTPAPIError
 from lib import sh
 
-AUTH_PRI_KEY = "/etc/manager/priv/authkey.key"
-AUTH_PUB_KEY = "/etc/manager/priv/authkey.pub"
+AUTH_PRI_KEY = "/etc/mng/priv/authkey.key"
+AUTH_PUB_KEY = "/etc/mng/priv/authkey.pub"
 
-HTTPS_CERT = '/etc/manager/priv/https_server.crt'
-HTTPS_CSR  = '/etc/manager/priv/https_server.csr'
-HTTPS_KEY  = '/etc//manager/priv/https_server.key'
-HTTPS_REQ_CERT_KEY = '/etc/manager/priv/https_req.key'
+HTTPS_CERT = '/etc/mng/priv/https_server.crt'
+HTTPS_CSR  = '/etc/mng/priv/https_server.csr'
+HTTPS_KEY  = '/etc/mng/priv/https_server.key'
+HTTPS_REQ_CERT_KEY = '/etc/mng/priv/https_req.key'
 
 logger1 = logging.getLogger("all_logs")
 

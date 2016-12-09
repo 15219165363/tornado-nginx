@@ -11,8 +11,8 @@ import base64
 import time
 
 
-AUTH_PRI_KEY = "/etc/manager/priv/authkey.key"
-AUTH_PUB_KEY = "/etc/manager/priv/authkey.pub";
+AUTH_PRI_KEY = "/etc/mng/priv/authkey.key"
+AUTH_PUB_KEY = "/etc/mng/priv/authkey.pub";
 
 def init_logger(name, level = "DEBUG", f = None):
 	LEVEL = getattr(logging, level.upper(), None)

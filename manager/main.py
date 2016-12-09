@@ -53,10 +53,15 @@ class Application(web.Application):
 
 def main():
 	try:
-		if not os.path.exists('/zzw/manager/logfiles'):
-			os.makedirs('/zzw/manager/logfiles')
+		#用来存放钥匙
+		if not os.path.exists('/etc/mng/priv'):
+			os.makedirs('/etc/mng/priv')
 
-		init_logger('all_logs', LOG_LEVEL, "/zzw/manager/logfiles/all_logs.log")
+		if not os.path.exists('/etc/mng/logfiles'):
+			os.makedirs('/etc/mng/logfiles')
+
+		init_logger('all_logs', LOG_LEVEL, "/etc/mng/logfiles/all_logs.log")
+		init_logger('terminal_log', LOG_LEVEL, "/etc/mng/logfiles/terminal_log.log")
 
 		http_server = HTTPServer(Application(),xheaders=True)
 		http_server.bind(8888, '127.0.0.1')

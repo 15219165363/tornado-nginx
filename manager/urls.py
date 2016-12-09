@@ -20,10 +20,10 @@ handlers = []
 ui_modules = {}
 
 # the module names in handlers folder
-handler_names = ["form"]
+handler_names = ["form", "terminal"]
 
 
-def _generate_handler_patterns(root_module, handler_names, prefix="/manager"):
+def _generate_handler_patterns(root_module, handler_names, prefix="/mng"):
 	for name in handler_names:
 		module = importlib.import_module(".%s" % name, root_module)
 		module_hanlders = getattr(module, "handlers", None)
