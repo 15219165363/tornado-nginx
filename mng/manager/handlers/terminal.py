@@ -26,28 +26,23 @@ class LOGON_USER_INFO(object):
 		print("after user_tmps ====-=======-========== %s" % str(user_tmps))
 		self.logon_user_info = user_tmps
 
-	def add_logon_user_info(self, username=None, client_addr=None, name=None, mac=None):
+	def add_logon_user_info(self, username=None, terminal_ip=None, name=None, mac=None):
 		print('%s ---in---add_logon_user_info --------------  %s' % (username, str(self.logon_user_info)))
 		try:
 			for u_name, info in self.logon_user_info.iteritems():
 				print(' info  %s' % (str(info)))
-				if info['name'] == name and info['domain'] == domain and info['mac'] != mac:
+				if info['name'] == name and info['mac'] != mac:
 					self.logon_user_info[u_name]['be_out'] = 1
-					
-				if info['name'] == name and info['domain'] == domain and info['addr'] != client_addr:
-					self.logon_user_info[u_name]['be_out'] = 1
-
-
-					
+									
 		except Exception, e:
 			print(' info  %s' % (str(info)))  
 
 		self.logon_user_info[username] = {
 			"name"        : name,
-			"addr"        : client_addr,
-			"time"        : time.time(),
-			"be_out"      : 0,
-			"mac"         : mac,
+			"ip"          : terminal_ip,
+			"mac"         : mac,			
+			"be_out"      : 0,	
+			"time"        : time.time(),	
 			"retry"		  : 0
 		}
 
@@ -90,11 +85,7 @@ class UserLoginHandler(APIHandler):
 			mac = self.get_argument('mac', None)
 
 			terminal_ip = self.request.remote_ip			
-			print "1------"
-			print username
-			print password
-			print terminal_ip
-			print "2------"
+
 			u_name = username + ':' + mac
 			LOGONER.add_logon_user_info(u_name.upper(), terminal_ip, username.upper(), mac)
 
@@ -108,8 +99,9 @@ class LoginUserHeartBeatHandler(APIHandler):
 		try:
 			username = self.get_argument('username', None)
 			mac = self.get_argument('mac', '0')
-			#client_addr = self.request.remote_ip
-				
+			print username
+			print mac
+
 			username = username + ':' + mac
 
 			s = {}
@@ -130,6 +122,7 @@ class LoginUserHeartBeatHandler(APIHandler):
 			else:
 				s['ret'] = 1001
 
+			print s
 			self.finish(s)
 
 		except Exception,e:
