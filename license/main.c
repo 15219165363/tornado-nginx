@@ -8,7 +8,7 @@
 #include "string-codec.h"
 
 #define RELEASE_VERSION 	"1.0"
-#define OPTION_STRING		("hVi:h:u:i:d:")
+#define OPTION_STRING		("hVi:h:u:i:d:l:")
 
 #define OP_GENKEY			1
 #define OP_DECODEKEY		2
@@ -17,6 +17,7 @@ struct commandline
 {
 	char *user;
 	char *uuid;
+	char *license;
 	int days;
 	int operation;
 };
@@ -64,7 +65,7 @@ static int print_usage()
 	printf("\n");
 	
 	printf("decodekey             Decode a license key.\n");
-	printf("serial number         Serial number that will be decode.\n");
+	printf("  -l [license]        License key that will be decode.\n");
 
 	printf("\n");
 }
@@ -109,6 +110,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 		case 'd':
 			comline->days = get_int_arg(optchar, optarg);
 			break;
+		case 'l':
+			comline->license = strdup(optarg);
+			break;
+
 		case EOF:
 			cont = 0;
 			break;
@@ -154,6 +159,7 @@ int GenerateKey(char *user, char *uuid, int days)
 
 int main(int argc, char *argv[])
 {
+	char  lincese_info[128] = {'\0'};	
 	commandline_t comline;
 
 
@@ -167,9 +173,9 @@ int main(int argc, char *argv[])
 			break;
 		} 
 		case OP_DECODEKEY://解码
-		{
-			//decode(str_info, ret_decode);		
-			//printf("ret_decode:%s\n",ret_decode);
+		{		
+			decode(comline.license, lincese_info);	
+			printf("license_info:%s\n",lincese_info);
 			break;
 		} 
 		default:
