@@ -1,5 +1,5 @@
 all:
-	gcc -o license-tool main.c string-ceode.c string-codec.h
+	gcc -o license-tool main.c string-codec.c string-codec.h
 
 clean:
 	rm -f *.o ${TARGET}
