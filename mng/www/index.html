@@ -1,74 +1,122 @@
-<!DOCTYPE html>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2//EN">
 <html>
 <head>
 
-<title>Tornado+Nginx</title>
-<link rel="shortcut icon" href="/favicon.ico" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9; IE=8; IE=7; IE=EDGE" /> 
+    <title>Loading...</title>
 
-<style>
-    body {
-        width: 35em;
-        margin: 0 auto;
-        font-family: Tahoma, Verdana, Arial, sans-serif;
-    }
-</style>
+    <script type="text/javascript">
+        if (window.location.protocol != 'https:') {
+            window.location.replace(window.location.href.replace(/^.*:/, 'https:'));
+        }
+    </script>  
 
-<script type="text/javascript" src="/js-lib/jquery-1.11.1.min.js"></script>
-<script type="text/javascript" src="/js-lib/jquery.validate.min.js"></script>
-<script type="text/javascript" src="/js-code/messages_zh.js"></script>
+    <link rel="shortcut icon" href="/favicon.ico" />
 
 </head>
 <body>
-<h1>Welcome to Tornado+Nginx!</h1>
-<p><em>Thank you for using nginx.</em></p>
-
-<form id="login">       
-
-    <p>用户名  : <input type="text" name="username" id="username"></p>
-    <p>密码   : <input type="text" name="password" id="password"></p>
-    <input type="button" value="登录" class="btn" onclick = "Login()" />
-
-</form>
-
 </body>
+</html>
 
-<script>
+<script  type="text/javascript">
 
-function Login(){
+var number = Math.random();
+document.write("\<link rel=\"stylesheet\" type=\"text/css\" href=\"ext4/resources/css/ext-all.css?"+number+"\"><\/link\>");
+document.write("\<script language=\"javascript\" type=\"text/javascript\" src=\"ext4/jquery-2.0.3.min.js?"+number+"\"><\/script\>");
+document.write("\<script language=\"javascript\" type=\"text/javascript\" src=\"ext4/jq-page-monitor.js?"+number+"\"><\/script\>");
+document.write("\<script language=\"javascript\" type=\"text/javascript\" src=\"ext4/ext-all.js?"+number+"\"><\/script\>");
+document.write("\<script language=\"javascript\" type=\"text/javascript\" src=\"ux/data/Ext.ux.data.PagingStore.js?"+number+"\"><\/script\>");
 
-    var username = document.getElementById("username").value;
-    var password = document.getElementById("password").value;
-    console.log(username);
-    console.log(password);
-    alert("======");
-    if(username == ""  ){
-        alert("用户名不能为空");
-        return false;
-    }
-    if(password == ""  ){
-        alert("密码不能为空");
-        return false;
-    }
+//document.write("\<script language=\"javascript\" type=\"text/javascript\" src=\"ext4/mnglib.js?"+number+"\"><\/script\>");
 
-    $.post("mng/login", {
-        username: username,
-        password: password
-    },
-    function (data) {
-        if (data.result == 'success') {
-           // $('#modal-xiugaimima').modal('hide');
-           // alertConfirm(jquery_gettext('Tip'),jquery_gettext('Change password successfully'));
-        }else{
-            //alertConfirm(jquery_gettext('Change password failed'),jquery_gettext('Wrong old password'));
-        }
-    },
-    "json");
 
-   //document.getElementById("login").submit();
+function loadScript(filename, callback) {  
+        var script  = document.createElement('script');  
+        script.type = "text/javascript";  
+        script.src  = filename;  
+        console.log("------");
+        console.log(script);
+        console.log(document.getElementsByTagName('head')[0]);
+        document.getElementsByTagName('head')[0].appendChild(script);
+        //IE has a different way of handling &lt;script&gt; loads, so we need to check for it here  
+        if (script.readyState) {  
+            console.log("this is in if");
+            script.onreadystatechange = function() {  
+                if (script.readyState == "loaded" || script.readyState == "complete") {  
+                    script.onreadystatechange = null;  
+                    callback && callback();  
+                }  
+            };  
+        } else {  
+            //console.log(callback);
+            callback && (script.onload = callback);  
 
+        }      
 }
 
+window.onload=function(){ 
+
+    Ext.onReady(function(){  
+        Ext.Loader.setConfig({enabled:true});  
+    });    
+    var language_cookie = Ext.util.Cookies.get('LangCookie');
+    var scripts;
+    var loadMsg = '';
+    var number = Math.random();
+    if (language_cookie && language_cookie == 'en') {
+        scripts = ['ext4/mnglib.js?'+number]
+        loadMsg = 'loading，please wait...';
+    }else if (language_cookie && language_cookie == 'zh_TW'){
+
+        scripts = ['ext4/mnglib.js?'+number];
+        loadMsg = '加載中，請稍候...';
+    }
+    else {
+        scripts = ['ext4/mnglib.js?'+number];
+        loadMsg = '加载中，请稍候...';
+    }
+    var loadMask = new Ext.LoadMask(Ext.getBody(), {msg:loadMsg});
+    loadMask.show();
+
+    for (var i = 0; i < scripts.length; i++) {
+        console.log(scripts);
+
+        if ( i == scripts.length - 1) {
+            loadScript(scripts[i], function () {
+                loadMask.hide();
+                Ext.application({ 
+                    name:"MNG", 
+                    launch: function() { 
+                        Ext.create("MNG.Workspace")
+                    }
+                });
+            })
+        } else {
+
+            loadScript(scripts[i])
+        }
+
+    }
+};
+document.onkeydown=function(e){ 
+    //IE不传e,使用window.event获得；firefox则从e中获得事件
+    var event=e||window.event;
+
+    var key=event.keyCode||event.which;
+    var type, stat;
+    if(event.srcElement){
+        type=event.srcElement.type;
+    }else if(event.target){
+        type=event.target.type;
+    }
+    if(key==8){ //屏蔽只读组件的删除事件。只读按钮，其他不可编辑元素下按backspace键会使浏览器后退到上一个页面
+        if(type!="text"&&type!="textarea"&&type!="select"&&type!='password'){
+            event.keyCode=0; 
+            event.returnValue=false; 
+        }
+    } 
+}
 </script>
 
 
-</html>

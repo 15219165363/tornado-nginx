@@ -83,10 +83,11 @@ class LoginHandler(APIHandler):
 
 	def post(self):
 		logger1.info("------")
-		print "------"
+
 		username = self.get_argument('username', None)
 		password = self.get_argument('password', None)
-
+		print "username = %s" %username
+		print "password = %s" %password
 
 		timestamp = "%08X" % time.time();
 		plain = "MNG:" + username + ":" + timestamp;
