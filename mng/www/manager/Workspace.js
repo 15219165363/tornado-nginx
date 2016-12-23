@@ -3,13 +3,18 @@ Ext.define("MNG.Workspace", {
 
 	title :gettext('MNG Platform'),
 
+	updateLeftTree:function () {
+		var me = this;
 
+	},
     onLogin:function () {
         var me = this;
 		me.updateUserInfo();
         Ext.Function.defer(function () {
 			me.getLayout().setActiveItem('main_container');
 			var sp = Ext.state.Manager.getProvider();
+			me.down('mngNavigator').applyState(sp.get('vid'));
+			me.down('mngLocalConfig').show();			
         }, 20);
     },
 	closeWindows:function () {
@@ -35,9 +40,15 @@ Ext.define("MNG.Workspace", {
     setContent:function (comp) {
         var me = this;
 
-        if (comp) {
+        var cont = me.down('#content');
+        cont.removeAll(true);
 
+        if (comp) {
+            MNG.Utils.setErrorMask(cont, false);
+            comp.border = false;
+            cont.add(comp);
         }
+		cont.updateLayout();
 
     },
     updateUserInfo:function () {
@@ -66,18 +77,14 @@ Ext.define("MNG.Workspace", {
     updateLoginData:function (loginData) {
         var me = this;
         me.loginData = loginData;
-        MNG.CSRFPreventionToken = loginData.CSRFPreventionToken;
         MNG.UserName = loginData.username;
-        MNG.LicenseUser = loginData.license_user;
-        MNG.LicenseTrial = loginData.license_trial;
-        MNG.LicenseTime = loginData.license_time;
 
 
     },
 	showLogin:function () {
 		var me = this;
-		//MNG.Utils.authClear();
-       // MNG.Utils.userClear();
+		MNG.Utils.authClear();
+        MNG.Utils.userClear();
        
 
 		if (!me.login) {
@@ -113,26 +120,26 @@ Ext.define("MNG.Workspace", {
         document.title = me.title;
         
 
-		Ext.Function.defer(function () {
-			me.showLogin();
-		}, 20);
+        if (!MNG.Utils.authOK()) {
+			Ext.Function.defer(function () {
+				me.showLogin();
+			}, 20);
+        }
+
    
 		Ext.TaskManager.start({
 			run:function () {
-				//var ticket = MNG.Utils.authOK();
-				//if (!ticket) {
-				//	return;
-				//}
+				var ticket = MNG.Utils.authOK();
+				if (!ticket) {
+					return;
+				}
 				Ext.Ajax.request({
 					url:'mng/login',
-					method:'POST',
-					params:{
-						username:"test",
-						password:"123456",
-					},					
+					method:'PUT',
+					
 					success:function (response, opts) {
 						var result = Ext.decode(response.responseText);
-						//me.updateLoginData(result.data);
+						me.updateLoginData(result.data);
 						me.onLogin();
 					}
 
@@ -204,7 +211,55 @@ Ext.define("MNG.Workspace", {
 							}
 						]
 					},
+					{
+						xtype:"mngNavigator",
+						region:"west",
+						width:"20%",
+						split:true,
+						//minWidth:"15%",
+						selModel:new Ext.selection.TreeModel({
+			                listeners:{
+			                    selectionchange: function (sm, selected) {
+									var comp;
+									var tlckup = {
+										localConfig:'MNG.dc.LocalConfig',
+									};
 
+									
+									if (selected.length > 0) {
+										var n = selected[0];
+										var id = n.data.id;
+
+										if (id == "localConfig") {
+											//console.log("111111");
+
+                                        }	
+
+										if(!tlckup[id])
+											return;
+
+										comp = contentCache[id] ? contentCache[id] : (contentCache[id] = Ext.create(tlckup[id],{
+										   // xtype:tlckup[n.data.id],
+											mngSelNode:n,
+											workspace:me
+											//viewFilter:selview.getViewFilter()
+										}));
+										comp.reload && comp.reload();
+										me.down('#content').getLayout().setActiveItem(comp);
+									
+									}	
+																
+
+								}
+							} 
+						})
+					},					
+					{
+						xtype:'container',
+						id:'content',
+						region:'center',
+						layout:'card'
+					}
 				]
 			}
 			]

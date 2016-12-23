@@ -8,7 +8,7 @@ from tornado.ioloop import IOLoop,PeriodicCallback
 
 from lib.handler import APIHandler
 
-logger_terminal = logging.getLogger("terminal_log")
+log_terminal = logging.getLogger("log_terminal")
 
 
 class LOGON_USER_INFO(object):
@@ -23,11 +23,11 @@ class LOGON_USER_INFO(object):
 				print("below 90...............................")
 				user_tmps[u_name] = info
 
-		print("after user_tmps ====-=======-========== %s" % str(user_tmps))
+		log_terminal.info("after user_tmps ====-=======-========== %s" % str(user_tmps))
 		self.logon_user_info = user_tmps
 
 	def add_logon_user_info(self, username=None, terminal_ip=None, name=None, mac=None):
-		print('%s ---in---add_logon_user_info --------------  %s' % (username, str(self.logon_user_info)))
+		log_terminal.info('%s ---in---add_logon_user_info --------------  %s' % (username, str(self.logon_user_info)))
 		try:
 			for u_name, info in self.logon_user_info.iteritems():
 				print(' info  %s' % (str(info)))
@@ -46,7 +46,7 @@ class LOGON_USER_INFO(object):
 			"retry"		  : 0
 		}
 
-		print('%s--after -in---add_logon_user_info -===========  %s' % (username, str(self.logon_user_info)))
+		log_terminal.info('%s--after -in---add_logon_user_info -===========  %s' % (username, str(self.logon_user_info)))
 
 		return
 

@@ -60,8 +60,8 @@ def main():
 		if not os.path.exists('/etc/mng/logfiles'):
 			os.makedirs('/etc/mng/logfiles')
 
-		init_logger('all_logs', LOG_LEVEL, "/etc/mng/logfiles/all_logs.log")
-		init_logger('terminal_log', LOG_LEVEL, "/etc/mng/logfiles/terminal_log.log")
+		init_logger('log_all', LOG_LEVEL, "/etc/mng/logfiles/log_all.log")
+		init_logger('log_terminal', LOG_LEVEL, "/etc/mng/logfiles/log_terminal.log")
 
 		http_server = HTTPServer(Application(),xheaders=True)
 		http_server.bind(8888, '127.0.0.1')

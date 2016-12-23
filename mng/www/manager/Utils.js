@@ -75,12 +75,12 @@ Ext.define('MNG.Utils', { statics:{
     dialog_title:function (subject, create, isAdd) {
         if (create) {
             if (isAdd) {
-                return gettext('Add') + ': ' + subject;
+                return gettext('增加') + ': ' + subject;
             } else {
-                return gettext('Create') + ': ' + subject;
+                return gettext('创建') + ': ' + subject;
             }
         } else {
-            return gettext('Edit') + ': ' + subject;
+            return gettext('编辑') + ': ' + subject;
         }
     },
     render_language:function (value) {
@@ -94,17 +94,15 @@ Ext.define('MNG.Utils', { statics:{
         return value;
     },
     authOK:function () {
-
-        //  return Ext.util.Cookies.get('SCAuthCookie');
-        //}
+        return Ext.util.Cookies.get('MNGAuth');
     },
 
     authClear:function () {
-   //     return Ext.util.Cookies.clear('mngAuth');
+        return Ext.util.Cookies.clear('MNGAuth');
     },
 
     userClear:function () {
-   //     return Ext.util.Cookies.clear('MNGUser');
+        return Ext.util.Cookies.clear('MNGUser');
     },
 
     // Ext.Ajax.request

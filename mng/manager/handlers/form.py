@@ -21,7 +21,7 @@ HTTPS_CSR  = '/etc/mng/priv/https_server.csr'
 HTTPS_KEY  = '/etc/mng/priv/https_server.key'
 HTTPS_REQ_CERT_KEY = '/etc/mng/priv/https_req.key'
 
-logger1 = logging.getLogger("all_logs")
+log_all = logging.getLogger("log_all")
 
 def gen_auth_key():
 
@@ -65,7 +65,7 @@ class FormHandler(APIHandler):
 		self.write("Hello, world")
 
 	def post(self):
-		logger1.info("------")
+		log_all.info("------")
 		self.write("Hello, this is in post")
 
 class SingleFormHandler(tornado.web.RequestHandler): 
@@ -82,7 +82,7 @@ class LoginHandler(APIHandler):
 		pass
 
 	def post(self):
-		logger1.info("------")
+		log_all.info("------")
 
 		username = self.get_argument('username', None)
 		password = self.get_argument('password', None)
@@ -109,6 +109,17 @@ class LoginHandler(APIHandler):
 
 		self.finish(response)
 		return
+
+	def put(self):
+		username = self.get_current_user()
+		ticket = self.get_ticket()
+		s = {}
+		if ticket:
+			s['username'] = username	
+			self.finish(s)
+		else:
+			self.finish(s)
+			#raise HTTPAPIError(401, error_type = 'invalid_ticket')		
 
 handlers = [(r"/forma", FormHandler),
 			(r"/singform/(.*)", SingleFormHandler),

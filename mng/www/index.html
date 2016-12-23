@@ -35,13 +35,9 @@ function loadScript(filename, callback) {
         var script  = document.createElement('script');  
         script.type = "text/javascript";  
         script.src  = filename;  
-        console.log("------");
-        console.log(script);
-        console.log(document.getElementsByTagName('head')[0]);
         document.getElementsByTagName('head')[0].appendChild(script);
         //IE has a different way of handling &lt;script&gt; loads, so we need to check for it here  
         if (script.readyState) {  
-            console.log("this is in if");
             script.onreadystatechange = function() {  
                 if (script.readyState == "loaded" || script.readyState == "complete") {  
                     script.onreadystatechange = null;  
@@ -80,7 +76,6 @@ window.onload=function(){
     loadMask.show();
 
     for (var i = 0; i < scripts.length; i++) {
-        console.log(scripts);
 
         if ( i == scripts.length - 1) {
             loadScript(scripts[i], function () {

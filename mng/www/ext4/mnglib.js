@@ -75,12 +75,12 @@ Ext.define('MNG.Utils', { statics:{
     dialog_title:function (subject, create, isAdd) {
         if (create) {
             if (isAdd) {
-                return gettext('Add') + ': ' + subject;
+                return gettext('增加') + ': ' + subject;
             } else {
-                return gettext('Create') + ': ' + subject;
+                return gettext('创建') + ': ' + subject;
             }
         } else {
-            return gettext('Edit') + ': ' + subject;
+            return gettext('编辑') + ': ' + subject;
         }
     },
     render_language:function (value) {
@@ -94,17 +94,15 @@ Ext.define('MNG.Utils', { statics:{
         return value;
     },
     authOK:function () {
-
-        //  return Ext.util.Cookies.get('SCAuthCookie');
-        //}
+        return Ext.util.Cookies.get('MNGAuth');
     },
 
     authClear:function () {
-   //     return Ext.util.Cookies.clear('mngAuth');
+        return Ext.util.Cookies.clear('MNGAuth');
     },
 
     userClear:function () {
-   //     return Ext.util.Cookies.clear('MNGUser');
+        return Ext.util.Cookies.clear('MNGUser');
     },
 
     // Ext.Ajax.request
@@ -333,7 +331,1154 @@ Ext.define('MNG.Utils', { statics:{
     stoppedText:gettext('Stopped'),
     neverText:gettext('Never')
 }
-});Ext.define('MNG.form.ComboBox', {
+});Ext.define('MNG.RestProxy', {
+    extend: 'Ext.data.RestProxy',
+    alias : 'proxy.mng',
+
+    constructor: function(config) {
+		var me = this;
+
+		config = config || {};
+
+		Ext.applyIf(config, {
+			pageParam : null,
+			startParam: null,
+			limitParam: null,
+			groupParam: null,
+			sortParam: null,
+			filterParam: null,
+			noCache : true,
+			reader: {
+				type: 'json',
+				root: config.root || 'data'
+			},
+			afterRequest: function(request, success) {
+				me.fireEvent('afterload', me, request, success);
+				return;
+			}
+		});
+
+		me.callParent([config]); 
+    }
+}, function() {
+		Ext.define('KeyValue', {
+			extend: "Ext.data.Model",
+			fields: [ 'key', 'value' ],
+			idProperty: 'key'
+		});
+
+
+	}
+
+
+);
+/* A reader to store a single JSON Object (hash) into a storage.
+ * Also accepts an array containing a single hash. 
+ * So it can read:
+ *
+ * example1: { data: "xyz" }
+ * example2: [ {  data: "xyz" } ]
+ */
+
+Ext.define('MNG.data.reader.JsonObject', {
+    extend:'Ext.data.reader.Json',
+    alias:'reader.jsonobject',
+
+    root:'data',
+
+    constructor:function (config) {
+        var me = this;
+
+        Ext.apply(me, config || {});
+        //console.log('jsonobject start...');
+        me.callParent([config]);
+    },
+
+    getResponseData:function (response) {
+
+        //console.log('my get response data...');
+        var me = this;
+
+        var data = [];
+        try {
+            var result = Ext.decode(response.responseText);
+            var root = me.getRoot(result);
+            var org_root = root;
+
+            if (Ext.isArray(org_root)) {
+                if (org_root.length == 1) {
+                    root = org_root[0];
+                } else {
+                    root = {};
+                }
+            }
+
+            if (me.rows) {
+                Ext.Object.each(me.rows, function (key, rowdef) {
+                    if (Ext.isDefined(root[key])) {
+                        data.push({key:key, value:root[key]});
+                    } else if (Ext.isDefined(rowdef.defaultValue)) {
+                        data.push({key:key, value:rowdef.defaultValue});
+                    } else if (rowdef.required) {
+                        data.push({key:key, value:undefined});
+                    }
+                });
+            } else {
+                Ext.Object.each(root, function (key, value) {
+                    data.push({key:key, value:value });
+                });
+            }
+
+            return me.readRecords(data);
+        }
+        catch (ex) {
+
+            var error = new Ext.data.ResultSet({
+                total  : 0,
+                count  : 0,
+                records: [],
+                success: false,
+                message: ex.message
+            });
+
+            this.fireEvent('exception', this, response, error);
+
+            Ext.Logger.warn('Unable to parse the JSON returned by the server');
+            console.log('Unable to parse the JSON returned by the server');
+
+//            Ext.Error.raise({
+//                response:response,
+//                json:response.responseText,
+//                parseError:ex,
+//                msg:'Unable to parse the JSON returned by the server: ' + ex.toString()
+//            });
+
+            return error;
+        }
+
+        console.log('my get response error. should not be run to here. = ');
+        return;
+    }
+});
+
+// Serialize load (avoid too many parallel connections)
+var mng_suspend_update = 0;
+Ext.define('MNG.data.UpdateQueue', {
+    singleton:true,
+
+    constructor:function () {
+        var me = this;
+
+        var queue = [];
+        var queue_idx = {};
+
+        var idle = true;
+
+        var start_update = function () {
+            if (!idle) {
+                return;
+            }
+
+            if(mng_suspend_update){
+                return;
+            }
+
+            var store = queue.shift();
+            if (!store) {
+                return;
+            }
+
+            queue_idx[store.storeid] = null;
+
+            idle = false;
+
+            store.load({
+                callback:function (records, operation, success) {
+
+                    idle = true;
+
+                }
+            });
+
+        };
+
+        Ext.apply(me, {
+            queue:function (store) {
+                if (!store.storeid) {
+                    throw "unable to queue store without storeid";
+                }
+                if (!queue_idx[store.storeid]) {
+                    queue_idx[store.storeid] = store;
+                    queue.push(store);
+                }
+                start_update();
+            }
+        });
+    }
+});
+Ext.define('MNG.data.UpdateStore', {
+    extend: 'Ext.data.Store',
+
+    constructor: function(config) {
+	var me = this;
+
+	config = config || {};
+
+	if (!config.interval) {
+	    config.interval = 3000;
+	}
+
+	if (!config.storeid) {
+	    throw "no storeid specified";
+	}
+
+	var load_task = new Ext.util.DelayedTask();
+
+	var run_load_task = function() {
+			MNG.data.UpdateQueue.queue(me);
+			load_task.delay(config.interval, run_load_task);
+
+	};
+
+	Ext.apply(config, {
+	    startUpdate: function() {
+			run_load_task();
+	    },
+	    stopUpdate: function() {
+			load_task.cancel();
+	    }
+	});
+
+	me.callParent([config]);
+
+	me.on('destroy', function() {
+	    load_task.cancel();
+	});
+    }
+});
+Ext.define('MNG.data.DynamicObjectStore', {
+    extend:'MNG.data.UpdateStore',
+
+    constructor:function (config) {
+        var me = this;
+
+        config = config || {};
+
+        if (!config.storeid) {
+            config.storeid = 'mng-store-' + (++Ext.idSeed);
+        }
+
+        Ext.applyIf(config, {
+            model:'KeyValue',
+            proxy:{
+                type:'mng',
+                url:config.url,
+                extraParams:config.extraParams,
+                reader:{
+                    type:'jsonobject',
+                    rows:config.rows
+                }
+            }
+        });
+
+        me.callParent([config]);
+    }
+});
+Ext.define('MNG.data.ObjectStore', {
+    extend:'Ext.data.Store',
+
+    constructor:function (config) {
+        var me = this;
+
+        config = config || {};
+
+        if (!config.storeid) {
+            config.storeid = 'mng-store-' + (++Ext.idSeed);
+        }
+
+        Ext.applyIf(config, {
+            model:'KeyValue',
+            proxy:{
+                type:'mng',
+                url:config.url,
+                extraParams:config.extraParams,
+                reader:{
+                    type:'jsonobject',
+                    rows:config.rows
+                }
+            }
+        });
+
+        me.callParent([config]);
+    }
+});
+/* Config properties:
+ * rstore: A storage to track changes
+ * Only works if rstore has a model and use 'idProperty'
+ */
+Ext.define('MNG.data.DiffStore', {
+    extend:'Ext.data.Store',
+
+    constructor:function (config) {
+        var me = this;
+
+        config = config || {};
+
+        if (!config.rstore) {
+            throw "no rstore specified";
+        }
+
+        if (!config.rstore.model) {
+            throw "no rstore model specified";
+        }
+
+        var rstore = config.rstore;
+
+        Ext.apply(config, {
+            model:rstore.model,
+            proxy:{ type:'memory' }
+        });
+
+        me.callParent([config]);
+
+        var first_load = true;
+
+        var cond_add_item = function (data, id) {
+            var olditem = me.getById(id);
+            if (olditem) {
+                olditem.beginEdit();
+                me.model.prototype.fields.eachKey(function (field) {
+                    if (olditem.data[field] !== data[field]) {
+                        olditem.set(field, data[field]);
+                    }
+                });
+                olditem.endEdit(true);
+                olditem.commit();
+            } else {
+                var newrec = Ext.ModelMgr.create(data, me.model, id);
+                var pos = (me.appendAtStart && !first_load) ? 0 : me.data.length;
+                me.insert(pos, newrec);
+            }
+        };
+
+        me.mon(rstore, 'load', function (s, records, success) {
+
+            if (!success) {
+                return;
+            }
+
+            me.suspendEvents();
+
+            // remove vanished items
+            (me.snapshot || me.data).each(function (olditem) {
+                var item = rstore.getById(olditem.getId());
+                if (!item) {
+                    me.remove(olditem);
+                }
+            });
+
+            rstore.each(function (item) {
+                cond_add_item(item.data, item.getId());
+            });
+
+            me.filter();
+
+            first_load = false;
+
+            me.resumeEvents();
+            me.fireEvent('datachanged', me);
+            me.fireEvent('refresh', me);
+        });
+    }
+});
+Ext.define('Timezone', {
+	extend:'Ext.data.Model',
+	fields: ['zone'],
+	proxy: {
+		type: 'memory',
+		reader: 'array'
+	}
+});
+Ext.define('MNG.data.TimezoneStore', {
+    extend: 'Ext.data.Store',
+
+    statics: {
+	timezones: [
+	    ['Africa/Abidjan'],
+	    ['Africa/Accra'],
+	    ['Africa/Addis_Ababa'],
+	    ['Africa/Algiers'],
+	    ['Africa/Asmara'],
+	    ['Africa/Bamako'],
+	    ['Africa/Bangui'],
+	    ['Africa/Banjul'],
+	    ['Africa/Bissau'],
+	    ['Africa/Blantyre'],
+	    ['Africa/Brazzaville'],
+	    ['Africa/Bujumbura'],
+	    ['Africa/Cairo'],
+	    ['Africa/Casablanca'],
+	    ['Africa/Ceuta'],
+	    ['Africa/Conakry'],
+	    ['Africa/Dakar'],
+	    ['Africa/Dar_es_Salaam'],
+	    ['Africa/Djibouti'],
+	    ['Africa/Douala'],
+	    ['Africa/El_Aaiun'],
+	    ['Africa/Freetown'],
+	    ['Africa/Gaborone'],
+	    ['Africa/Harare'],
+	    ['Africa/Johannesburg'],
+	    ['Africa/Kampala'],
+	    ['Africa/Khartoum'],
+	    ['Africa/Kigali'],
+	    ['Africa/Kinshasa'],
+	    ['Africa/Lagos'],
+	    ['Africa/Libreville'],
+	    ['Africa/Lome'],
+	    ['Africa/Luanda'],
+	    ['Africa/Lubumbashi'],
+	    ['Africa/Lusaka'],
+	    ['Africa/Malabo'],
+	    ['Africa/Maputo'],
+	    ['Africa/Maseru'],
+	    ['Africa/Mbabane'],
+	    ['Africa/Mogadishu'],
+	    ['Africa/Monrovia'],
+	    ['Africa/Nairobi'],
+	    ['Africa/Ndjamena'],
+	    ['Africa/Niamey'],
+	    ['Africa/Nouakchott'],
+	    ['Africa/Ouagadougou'],
+	    ['Africa/Porto-Novo'],
+	    ['Africa/Sao_Tome'],
+	    ['Africa/Tripoli'],
+	    ['Africa/Tunis'],
+	    ['Africa/Windhoek'],
+	    ['America/Adak'],
+	    ['America/Anchorage'],
+	    ['America/Anguilla'],
+	    ['America/Antigua'],
+	    ['America/Araguaina'],
+	    ['America/Argentina/Buenos_Aires'],
+	    ['America/Argentina/Catamarca'],
+	    ['America/Argentina/Cordoba'],
+	    ['America/Argentina/Jujuy'],
+	    ['America/Argentina/La_Rioja'],
+	    ['America/Argentina/Mendoza'],
+	    ['America/Argentina/Rio_Gallegos'],
+	    ['America/Argentina/Salta'],
+	    ['America/Argentina/San_Juan'],
+	    ['America/Argentina/San_Luis'],
+	    ['America/Argentina/Tucuman'],
+	    ['America/Argentina/Ushuaia'],
+	    ['America/Aruba'],
+	    ['America/Asuncion'],
+	    ['America/Atikokan'],
+	    ['America/Bahia'],
+	    ['America/Bahia_Banderas'],
+	    ['America/Barbados'],
+	    ['America/Belem'],
+	    ['America/Belize'],
+	    ['America/Blanc-Sablon'],
+	    ['America/Boa_Vista'],
+	    ['America/Bogota'],
+	    ['America/Boise'],
+	    ['America/Cambridge_Bay'],
+	    ['America/Campo_Grande'],
+	    ['America/Cancun'],
+	    ['America/Caracas'],
+	    ['America/Cayenne'],
+	    ['America/Cayman'],
+	    ['America/Chicago'],
+	    ['America/Chihuahua'],
+	    ['America/Costa_Rica'],
+	    ['America/Cuiaba'],
+	    ['America/Curacao'],
+	    ['America/Danmarkshavn'],
+	    ['America/Dawson'],
+	    ['America/Dawson_Creek'],
+	    ['America/Denver'],
+	    ['America/Detroit'],
+	    ['America/Dominica'],
+	    ['America/Edmonton'],
+	    ['America/Eirunepe'],
+	    ['America/El_Salvador'],
+	    ['America/Fortaleza'],
+	    ['America/Glace_Bay'],
+	    ['America/Godthab'],
+	    ['America/Goose_Bay'],
+	    ['America/Grand_Turk'],
+	    ['America/Grenada'],
+	    ['America/Guadeloupe'],
+	    ['America/Guatemala'],
+	    ['America/Guayaquil'],
+	    ['America/Guyana'],
+	    ['America/Halifax'],
+	    ['America/Havana'],
+	    ['America/Hermosillo'],
+	    ['America/Indiana/Indianapolis'],
+	    ['America/Indiana/Knox'],
+	    ['America/Indiana/Marengo'],
+	    ['America/Indiana/Petersburg'],
+	    ['America/Indiana/Tell_City'],
+	    ['America/Indiana/Vevay'],
+	    ['America/Indiana/Vincennes'],
+	    ['America/Indiana/Winamac'],
+	    ['America/Inuvik'],
+	    ['America/Iqaluit'],
+	    ['America/Jamaica'],
+	    ['America/Juneau'],
+	    ['America/Kentucky/Louisville'],
+	    ['America/Kentucky/Monticello'],
+	    ['America/La_Paz'],
+	    ['America/Lima'],
+	    ['America/Los_Angeles'],
+	    ['America/Maceio'],
+	    ['America/Managua'],
+	    ['America/Manaus'],
+	    ['America/Marigot'],
+	    ['America/Martinique'],
+	    ['America/Matamoros'],
+	    ['America/Mazatlan'],
+	    ['America/Menominee'],
+	    ['America/Merida'],
+	    ['America/Mexico_City'],
+	    ['America/Miquelon'],
+	    ['America/Moncton'],
+	    ['America/Monterrey'],
+	    ['America/Montevideo'],
+	    ['America/Montreal'],
+	    ['America/Montserrat'],
+	    ['America/Nassau'],
+	    ['America/New_York'],
+	    ['America/Nipigon'],
+	    ['America/Nome'],
+	    ['America/Noronha'],
+	    ['America/North_Dakota/Center'],
+	    ['America/North_Dakota/New_Salem'],
+	    ['America/Ojinaga'],
+	    ['America/Panama'],
+	    ['America/Pangnirtung'],
+	    ['America/Paramaribo'],
+	    ['America/Phoenix'],
+	    ['America/Port-au-Prince'],
+	    ['America/Port_of_Spain'],
+	    ['America/Porto_Velho'],
+	    ['America/Puerto_Rico'],
+	    ['America/Rainy_River'],
+	    ['America/Rankin_Inlet'],
+	    ['America/Recife'],
+	    ['America/Regina'],
+	    ['America/Resolute'],
+	    ['America/Rio_Branco'],
+	    ['America/Santa_Isabel'],
+	    ['America/Santarem'],
+	    ['America/Santiago'],
+	    ['America/Santo_Domingo'],
+	    ['America/Sao_Paulo'],
+	    ['America/Scoresbysund'],
+	    ['America/Shiprock'],
+	    ['America/St_Barthelemy'],
+	    ['America/St_Johns'],
+	    ['America/St_Kitts'],
+	    ['America/St_Lucia'],
+	    ['America/St_Thomas'],
+	    ['America/St_Vincent'],
+	    ['America/Swift_Current'],
+	    ['America/Tegucigalpa'],
+	    ['America/Thule'],
+	    ['America/Thunder_Bay'],
+	    ['America/Tijuana'],
+	    ['America/Toronto'],
+	    ['America/Tortola'],
+	    ['America/Vancouver'],
+	    ['America/Whitehorse'],
+	    ['America/Winnipeg'],
+	    ['America/Yakutat'],
+	    ['America/Yellowknife'],
+	    ['Antarctica/Casey'],
+	    ['Antarctica/Davis'],
+	    ['Antarctica/DumontDUrville'],
+	    ['Antarctica/Macquarie'],
+	    ['Antarctica/Mawson'],
+	    ['Antarctica/McMurdo'],
+	    ['Antarctica/Palmer'],
+	    ['Antarctica/Rothera'],
+	    ['Antarctica/South_Pole'],
+	    ['Antarctica/Syowa'],
+	    ['Antarctica/Vostok'],
+	    ['Arctic/Longyearbyen'],
+	    ['Asia/Aden'],
+	    ['Asia/Almaty'],
+	    ['Asia/Amman'],
+	    ['Asia/Anadyr'],
+	    ['Asia/Aqtau'],
+	    ['Asia/Aqtobe'],
+	    ['Asia/Ashgabat'],
+	    ['Asia/Baghdad'],
+	    ['Asia/Bahrain'],
+	    ['Asia/Baku'],
+	    ['Asia/Bangkok'],
+	    ['Asia/Beirut'],
+	    ['Asia/Bishkek'],
+	    ['Asia/Brunei'],
+	    ['Asia/Choibalsan'],
+	    ['Asia/Chongqing'],
+	    ['Asia/Colombo'],
+	    ['Asia/Damascus'],
+	    ['Asia/Dhaka'],
+	    ['Asia/Dili'],
+	    ['Asia/Dubai'],
+	    ['Asia/Dushanbe'],
+	    ['Asia/Gaza'],
+	    ['Asia/Harbin'],
+	    ['Asia/Ho_Chi_Minh'],
+	    ['Asia/Hong_Kong'],
+	    ['Asia/Hovd'],
+	    ['Asia/Irkutsk'],
+	    ['Asia/Jakarta'],
+	    ['Asia/Jayapura'],
+	    ['Asia/Jerusalem'],
+	    ['Asia/Kabul'],
+	    ['Asia/Kamchatka'],
+	    ['Asia/Karachi'],
+	    ['Asia/Kashgar'],
+	    ['Asia/Kathmandu'],
+	    ['Asia/Kolkata'],
+	    ['Asia/Krasnoyarsk'],
+	    ['Asia/Kuala_Lumpur'],
+	    ['Asia/Kuching'],
+	    ['Asia/Kuwait'],
+	    ['Asia/Macau'],
+	    ['Asia/Magadan'],
+	    ['Asia/Makassar'],
+	    ['Asia/Manila'],
+	    ['Asia/Muscat'],
+	    ['Asia/Nicosia'],
+	    ['Asia/Novokuznetsk'],
+	    ['Asia/Novosibirsk'],
+	    ['Asia/Omsk'],
+	    ['Asia/Oral'],
+	    ['Asia/Phnom_Penh'],
+	    ['Asia/Pontianak'],
+	    ['Asia/Pyongyang'],
+	    ['Asia/Qatar'],
+	    ['Asia/Qyzylorda'],
+	    ['Asia/Rangoon'],
+	    ['Asia/Riyadh'],
+	    ['Asia/Sakhalin'],
+	    ['Asia/Samarkand'],
+	    ['Asia/Seoul'],
+	    ['Asia/Shanghai'],
+	    ['Asia/Singapore'],
+	    ['Asia/Taipei'],
+	    ['Asia/Tashkent'],
+	    ['Asia/Tbilisi'],
+	    ['Asia/Tehran'],
+	    ['Asia/Thimphu'],
+	    ['Asia/Tokyo'],
+	    ['Asia/Ulaanbaatar'],
+	    ['Asia/Urumqi'],
+	    ['Asia/Vientiane'],
+	    ['Asia/Vladivostok'],
+	    ['Asia/Yakutsk'],
+	    ['Asia/Yekaterinburg'],
+	    ['Asia/Yerevan'],
+	    ['Atlantic/Azores'],
+	    ['Atlantic/Bermuda'],
+	    ['Atlantic/Canary'],
+	    ['Atlantic/Cape_Verde'],
+	    ['Atlantic/Faroe'],
+	    ['Atlantic/Madeira'],
+	    ['Atlantic/Reykjavik'],
+	    ['Atlantic/South_Georgia'],
+	    ['Atlantic/St_Helena'],
+	    ['Atlantic/Stanley'],
+	    ['Australia/Adelaide'],
+	    ['Australia/Brisbane'],
+	    ['Australia/Broken_Hill'],
+	    ['Australia/Currie'],
+	    ['Australia/Darwin'],
+	    ['Australia/Eucla'],
+	    ['Australia/Hobart'],
+	    ['Australia/Lindeman'],
+	    ['Australia/Lord_Howe'],
+	    ['Australia/Melbourne'],
+	    ['Australia/Perth'],
+	    ['Australia/Sydney'],
+	    ['Europe/Amsterdam'],
+	    ['Europe/Andorra'],
+	    ['Europe/Athens'],
+	    ['Europe/Belgrade'],
+	    ['Europe/Berlin'],
+	    ['Europe/Bratislava'],
+	    ['Europe/Brussels'],
+	    ['Europe/Bucharest'],
+	    ['Europe/Budapest'],
+	    ['Europe/Chisinau'],
+	    ['Europe/Copenhagen'],
+	    ['Europe/Dublin'],
+	    ['Europe/Gibraltar'],
+	    ['Europe/Guernsey'],
+	    ['Europe/Helsinki'],
+	    ['Europe/Isle_of_Man'],
+	    ['Europe/Istanbul'],
+	    ['Europe/Jersey'],
+	    ['Europe/Kaliningrad'],
+	    ['Europe/Kiev'],
+	    ['Europe/Lisbon'],
+	    ['Europe/Ljubljana'],
+	    ['Europe/London'],
+	    ['Europe/Luxembourg'],
+	    ['Europe/Madrid'],
+	    ['Europe/Malta'],
+	    ['Europe/Mariehamn'],
+	    ['Europe/Minsk'],
+	    ['Europe/Monaco'],
+	    ['Europe/Moscow'],
+	    ['Europe/Oslo'],
+	    ['Europe/Paris'],
+	    ['Europe/Podgorica'],
+	    ['Europe/Prague'],
+	    ['Europe/Riga'],
+	    ['Europe/Rome'],
+	    ['Europe/Samara'],
+	    ['Europe/San_Marino'],
+	    ['Europe/Sarajevo'],
+	    ['Europe/Simferopol'],
+	    ['Europe/Skopje'],
+	    ['Europe/Sofia'],
+	    ['Europe/Stockholm'],
+	    ['Europe/Tallinn'],
+	    ['Europe/Tirane'],
+	    ['Europe/Uzhgorod'],
+	    ['Europe/Vaduz'],
+	    ['Europe/Vatican'],
+	    ['Europe/Vienna'],
+	    ['Europe/Vilnius'],
+	    ['Europe/Volgograd'],
+	    ['Europe/Warsaw'],
+	    ['Europe/Zagreb'],
+	    ['Europe/Zaporozhye'],
+	    ['Europe/Zurich'],
+	    ['Indian/Antananarivo'],
+	    ['Indian/Chagos'],
+	    ['Indian/Christmas'],
+	    ['Indian/Cocos'],
+	    ['Indian/Comoro'],
+	    ['Indian/Kerguelen'],
+	    ['Indian/Mahe'],
+	    ['Indian/Maldives'],
+	    ['Indian/Mauritius'],
+	    ['Indian/Mayotte'],
+	    ['Indian/Reunion'],
+	    ['Pacific/Apia'],
+	    ['Pacific/Auckland'],
+	    ['Pacific/Chatham'],
+	    ['Pacific/Chuuk'],
+	    ['Pacific/Easter'],
+	    ['Pacific/Efate'],
+	    ['Pacific/Enderbury'],
+	    ['Pacific/Fakaofo'],
+	    ['Pacific/Fiji'],
+	    ['Pacific/Funafuti'],
+	    ['Pacific/Galapagos'],
+	    ['Pacific/Gambier'],
+	    ['Pacific/Guadalcanal'],
+	    ['Pacific/Guam'],
+	    ['Pacific/Honolulu'],
+	    ['Pacific/Johnston'],
+	    ['Pacific/Kiritimati'],
+	    ['Pacific/Kosrae'],
+	    ['Pacific/Kwajalein'],
+	    ['Pacific/Majuro'],
+	    ['Pacific/Marquesas'],
+	    ['Pacific/Midway'],
+	    ['Pacific/Nauru'],
+	    ['Pacific/Niue'],
+	    ['Pacific/Norfolk'],
+	    ['Pacific/Noumea'],
+	    ['Pacific/Pago_Pago'],
+	    ['Pacific/Palau'],
+	    ['Pacific/Pitcairn'],
+	    ['Pacific/Pohnpei'],
+	    ['Pacific/Port_Moresby'],
+	    ['Pacific/Rarotonga'],
+	    ['Pacific/Saipan'],
+	    ['Pacific/Tahiti'],
+	    ['Pacific/Tarawa'],
+	    ['Pacific/Tongatapu'],
+	    ['Pacific/Wake'],
+	    ['Pacific/Wallis']
+	]
+    },
+
+    constructor: function(config) {
+		var me = this;
+
+		config = config || {};
+
+		Ext.apply(config, {
+			model: 'Timezone',
+			data: MNG.data.TimezoneStore.timezones
+		});
+
+		me.callParent([config]);	
+    }
+});
+Ext.define('MNG.grid.ObjectGrid', {
+    extend:'Ext.grid.GridPanel',
+    alias:['widget.mngObjectGrid'],
+
+    getObjectValue:function (key, defaultValue) {
+        var me = this;
+        var rec = me.store.getById(key);
+        if (rec) {
+            return rec.data.value;
+        }
+        return defaultValue;
+    },
+
+    renderKey:function (key, metaData, record, rowIndex, colIndex, store) {
+        var me = this;
+        var rows = me.rows;
+        var rowdef = (rows && rows[key]) ? rows[key] : {};
+        return rowdef.header || key;
+    },
+
+    renderValue:function (value, metaData, record, rowIndex, colIndex, store) {
+        var me = this;
+        var rows = me.rows;
+        var key = record.data.key;
+        var rowdef = (rows && rows[key]) ? rows[key] : {};
+
+        var renderer = rowdef.renderer;
+        if (renderer) {
+            return renderer(value, metaData, record, rowIndex, colIndex, store);
+        }
+
+        return value;
+    },
+
+    initComponent:function () {
+        var me = this;
+
+        var rows = me.rows;
+        console.log("this is in MNG.grid.ObjectGrid");
+        if (!me.rstore) {
+            if (!me.url) {
+                throw "no url specified";
+            }
+			if (!me.interval) {
+				me.rstore = Ext.create('MNG.data.ObjectStore', {
+					url:me.url,
+					extraParams:me.extraParams,
+					rows:me.rows
+				});
+			} else {
+				me.rstore = Ext.create('MNG.data.DynamicObjectStore', {
+					url:me.url,
+					interval:me.interval,
+					extraParams:me.extraParams,
+					rows:me.rows
+				})
+			}
+        }
+
+        var rstore = me.rstore;
+
+        var store = Ext.create('MNG.data.DiffStore', { rstore:rstore });
+
+        if (rows) {
+            Ext.Object.each(rows, function (key, rowdef) {
+                if (Ext.isDefined(rowdef.defaultValue)) {
+                    store.add({ key:key, value:rowdef.defaultValue });
+                } else if (rowdef.required) {
+                    store.add({ key:key, value:undefined });
+                }
+            });
+        }
+
+        if (me.sorterFn) {
+            store.sorters.add(new Ext.util.Sorter({
+                sorterFn:me.sorterFn
+            }));
+        }
+
+        store.filters.add(new Ext.util.Filter({
+            filterFn:function (item) {
+                if (rows) {
+                    var rowdef = rows[item.data.key];
+                    if (!rowdef || (rowdef.visible === false)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }));
+
+        MNG.Utils.monStoreErrors(me, rstore);
+
+        Ext.applyIf(me, {
+            store:store,
+            hideHeaders:true,
+            stateful:false,
+            columns:[
+                {
+                    header:'Name',
+                    width:me.cwidth1 || 100,
+                    dataIndex:'key',
+                    renderer:me.renderKey
+                },
+                {
+                    flex:1,
+                    header:'Value',
+                    dataIndex:'value',
+                    renderer:me.renderValue
+                }
+            ]
+        });
+
+        me.callParent();
+    }
+});
+Ext.define('MNG.panel.InputPanel', {
+    extend:'Ext.panel.Panel',
+    alias:['widget.inputpanel'],
+
+    border:false,
+
+    // overwrite this to modify submit data
+
+
+    onGetValues:function (values) {
+        return values;
+    },
+
+    getValues:function (dirtyOnly) {
+        var me = this;
+
+        if (Ext.isFunction(me.onGetValues)) {
+            dirtyOnly = false;
+        }
+
+        var values = {};
+
+        Ext.Array.each(me.query('[isFormField]'), function (field) {
+            if (!dirtyOnly || field.isDirty()) {
+                MNG.Utils.assemble_field_data(values, field.getSubmitData());
+            }
+        });
+
+        return me.onGetValues(values);
+    },
+
+    setValues:function (values) {
+        var me = this;
+
+        var form = me.up('form');
+
+        Ext.iterate(values, function (fieldId, val) {
+            var field = me.query('[isFormField][name=' + fieldId + ']')[0];
+            if (field) {
+                field.setValue(val);
+                if (form.trackResetOnLoad) {
+                    field.resetOriginalValue();
+                }
+            }
+        });
+    },
+
+    initComponent:function () {
+        var me = this;
+
+        var items;
+
+		if (me.tips.enabled) {
+			//if (!me.tips.icon){
+			//	me.tips.icon = '/ovp2/images/about.png'
+			//}
+
+			if (!me.tips.text){
+				me.tips.text =  'this is a normal tip.'
+			}
+
+			if (!me.tips.html) {
+				me.tips.html = '<img src="' + me.tips.icon + '"/><a>  ' + me.tips.text + '</a>';
+			}
+		}
+
+        if (me.items) {
+            me.columns = 1;
+            items = [
+                {
+                    columnWidth:1,
+                    layout:'anchor',
+                    items:me.items
+                }
+            ];
+            me.items = undefined;
+        } else if (me.column1) {
+            me.columns = 2;
+            items = [
+                {
+                    columnWidth:0.5,
+                    padding:'0 10 0 0',
+                    layout:'anchor',
+                    items:me.column1
+                },
+                {
+                    columnWidth:0.5,
+                    padding:'0 0 0 10',
+                    layout:'anchor',
+                    items:me.column2 || [] // allow empty column
+                }
+            ];
+        } else {
+            throw "unsupported config";
+        }
+		var total_items = [];
+		if (me.tips.enabled) {
+			total_items.push(
+				{
+					xtype:"panel",
+					padding:5,
+					align:'center',
+					html:me.tips.html,
+					bodyPadding:5
+				}
+			);
+		}
+        if (me.useFieldContainer) {
+			total_items.push(
+				Ext.apply(me.useFieldContainer, {
+					layout:'column',
+					defaultType:'container',
+					items:items,
+					padding:5
+				})
+			);
+        } else {
+			total_items.push(
+				{
+					layout:'column',
+					border:false,
+					defaultType:'container',
+					padding:5,
+					items:items
+				}
+			);
+        }
+		Ext.apply(me, {
+			layout:{
+				type:'vbox',
+				align:'stretch'
+			},
+			items:total_items
+		});
+
+        me.callParent();
+    }
+});
+Ext.define('MNG.panel.Config', {
+    extend:'Ext.panel.Panel',
+    alias:'widget.mngPanelConfig',
+
+    initComponent:function () {
+        var me = this;
+
+        var stateid = me.hstateid;
+
+        var sp = Ext.state.Manager.getProvider();
+
+        var activeTab;
+
+        if (stateid) {
+            var state = sp.get(stateid);
+            if (state && state.value) {
+                activeTab = state.value;
+            }
+        }
+
+        var items = me.items || [];
+        me.items = undefined;
+
+        var tbar = me.tbar || [];
+        me.tbar = undefined;
+
+        var title = me.title;
+        me.title = undefined;
+
+        tbar.unshift('->');
+        tbar.unshift({
+            xtype:'tbtext',
+            text:title,
+            baseCls:'x-panel-header-text',
+            padding:'0 0 5 0'
+        });
+
+        var toolbar = Ext.create('Ext.toolbar.Toolbar', {
+            items:tbar,
+            style:'border:0px;',
+            height:28
+        });
+
+        var tab = Ext.create('Ext.tab.Panel', {
+            flex:1,
+            border:true,
+			activeTab:activeTab,
+            defaults:Ext.apply(me.defaults || {}, {
+                viewFilter:me.viewFilter,
+                workspace:me.workspace,
+                border:false
+            }),
+            items:items,
+            listeners:{
+                afterrender:function (tp) {
+                    var first = tp.items.get(0);
+                    if (first) {
+                        first.fireEvent('show', first);
+                    }
+                },
+                tabchange:function (tp, newcard, oldcard) {
+                    var ntab = newcard.itemId;
+                    // Note: '' is alias for first tab.
+                    // First tab can be 'search' or something else
+                    if (newcard.itemId === items[0].itemId) {
+                        ntab = '';
+                    }
+                    var state = { value:ntab };
+                    if (stateid) {
+                        sp.set(stateid, state);
+                    }
+                }
+            }
+        });
+
+        Ext.apply(me, {
+            layout:{ type:'vbox', align:'stretch' },
+            items:[ toolbar, tab]
+        });
+
+        me.callParent();
+
+        var statechange = function (sp, key, state) {
+            if (stateid && key === stateid) {
+                var atab = tab.getActiveTab().itemId;
+                var ntab = state.value || items[0].itemId;
+                if (state && ntab && (atab != ntab)) {
+                    tab.setActiveTab(ntab);
+                }
+            }
+        };
+
+        if (stateid) {
+            me.mon(sp, 'statechange', statechange);
+        }
+    }
+});
+Ext.define('MNG.form.ComboBox', {
     extend: 'Ext.form.field.ComboBox',
     alias: 'widget.mngComboBox',
 
@@ -380,7 +1525,88 @@ Ext.define('MNG.form.LanguageSelector', {
 		me.data = MNG.Utils.language_array();
 		me.callParent();
     }
-});Ext.define('MNG.window.LoginWindow', {
+});Ext.define('MNG.tree.Navigator', {
+	extend:'Ext.tree.Panel',
+	alias:'widget.mngNavigator',
+	selectExpand:function (node) {
+		var me = this;
+		var sm = me.getSelectionModel();
+		sm.fireEvent('selectionchange', sm, [node]);
+		me.setActive(true, node);
+		var cn = node;
+		while (!!(cn = cn.parentNode)) {
+			if (!cn.isExpanded()) {
+				cn.expand();
+			}
+		}
+	},
+	selectById:function (nodeid) {
+		var me = this;
+		var rootnode = me.getRootNode();
+		var sm = me.getSelectionModel();
+		var node;
+		if (nodeid === 'root') {
+			node = rootnode;
+		} else {
+			node = rootnode.findChild('id', nodeid, true);
+		}
+		if (node) {
+			me.selectExpand(node);
+			sm.select(node);
+		}
+	},
+
+	applyState:function (state) {
+		var me = this;
+		var sm = me.getSelectionModel();
+		if (state && state.value) {
+			me.selectById(state.value);
+		} else {
+			me.selectById('localConfig');
+		}   
+	},
+		
+	initComponent: function () {
+		var me = this;
+		var sp = Ext.state.Manager.getProvider();
+		var stateid = 'vid';
+		
+		
+		me.store = Ext.create('Ext.data.TreeStore', {
+			root: {
+				children: [
+
+					{text:gettext('系统配置'), children:[
+						{icon: '/images/local_config.png',text:gettext('本地配置'), id:'localConfig',  leaf:true},
+
+					]},
+
+				]
+			}
+		});
+		
+	
+		Ext.apply(me, {
+			title: gettext('导航'),
+			height:'100%',
+			rootVisible:false,
+			//resizable: true,
+			//collapsible:true,
+			bodyStyle:'overflow-y:scroll',
+			layout: 'auto',
+			store:me.store
+		});
+		
+		//加载
+		me.callParent();
+		var sm = me.getSelectionModel();
+		sm.ignoreRightMouseSelection = true;
+		sm.on('select', function (sm, n) {
+			sp.set(stateid, { value:n.data.id});
+		});
+	}
+});
+Ext.define('MNG.window.LoginWindow', {
     extend:'Ext.window.Window',
     
     onLogon:function () {
@@ -445,7 +1671,6 @@ Ext.define('MNG.form.LanguageSelector', {
 
     initComponent:function () {
         var me = this;
-        console.log("this is in onLogin initComponent");
         if(!me.viewport){
             throw "viewport must setted!";
         }
@@ -466,7 +1691,6 @@ Ext.define('MNG.form.LanguageSelector', {
         var local_user = Ext.util.Cookies.get('local_user');
         var local_remember = Ext.util.Cookies.get('local_remember');
 
-        console.log(local_user);
         buttons.push({
             xtype:'checkbox',
             id:'remember',
@@ -505,7 +1729,6 @@ Ext.define('MNG.form.LanguageSelector', {
                     width:204,
                     height:118,
                     region:'center',
-                    align:'center'
 
                 },
                 {
@@ -612,18 +1835,452 @@ Ext.define('MNG.form.LanguageSelector', {
         }
 
     }
-});Ext.define("MNG.Workspace", {
+});Ext.define('MNG.window.Edit', {
+    extend:'Ext.window.Window',
+    alias:'widget.mngWindowEdit',
+
+    resizable:false,
+
+    // use this tio atimatically generate a title like
+    // Create: <subject>
+    subject:undefined,
+
+    // set create to true if you want a Create button (instead 
+    // OK and RESET) 
+    create:false,
+
+    // set to true if you want an Add button (instead of Create)
+    isAdd:false,
+
+    isValid:function () {
+        var me = this;
+
+        var form = me.formPanel.getForm();
+        return form.isValid();
+    },
+
+    getValues:function (dirtyOnly) {
+        var me = this;
+
+        var values = {};
+
+        var form = me.formPanel.getForm();
+
+        form.getFields().each(function (field) {
+            if (!field.up('inputpanel') && (!dirtyOnly || field.isDirty())) {
+                MNG.Utils.assemble_field_data(values, field.getSubmitData());
+            }
+        });
+
+        Ext.Array.each(me.query('inputpanel'), function (panel) {
+            MNG.Utils.assemble_field_data(values, panel.getValues(dirtyOnly));
+        });
+
+        return values;
+    },
+
+    setValues:function (values) {
+        var me = this;
+
+        var form = me.formPanel.getForm();
+
+        Ext.iterate(values, function (fieldId, val) {
+            var field = form.findField(fieldId);
+            if (field && !field.up('inputpanel')) {
+                field.setValue(val);
+                if (form.trackResetOnLoad) {
+                    field.resetOriginalValue();
+                }
+            }
+        });
+
+        Ext.Array.each(me.query('inputpanel'), function (panel) {
+            panel.setValues(values);
+        });
+    },
+
+    submit:function () {
+        var me = this;
+
+        var form = me.formPanel.getForm();
+
+        var values = me.getValues();
+        Ext.Object.each(values, function (name, val) {
+            if (values.hasOwnProperty(name)) {
+                if (Ext.isArray(val) && !val.length) {
+                    values[name] = '';
+                }
+            }
+        });
+
+        if (me.digest) {
+            values.digest = me.digest;
+        }
+
+        MNG.Utils.Request({
+            url:me.url,
+            waitMsgTarget:me,
+            method:me.method || 'PUT',
+            params:values,
+            failure:function (response, options) {
+                var result, meta;
+                try {
+                    result = Ext.decode(response.responseText);
+                    meta = result.meta;
+                } catch (e) {
+                    if (response.status == 502 || response.status == 504) {
+                        
+                    }
+                };
+                if (response.status == 405) {
+                    if (Ext.decode(response.responseText).meta.errorType == "xxx") {
+                        Ext.Msg.alert(gettext('Error'), 
+                            Ext.String.format(gettext('xxxxxx')));
+                    }                  
+                } else if (response.status == 505) {
+                    if (meta && meta.errorType == 'xxx') {
+                        Ext.Msg.alert(gettext('Error'), 
+                            Ext.String.format(gettext('xxx')));
+                    }
+                } else if (response.status == 400) {
+                    if (meta && meta.errorType == 'xxx') {
+                        Ext.Msg.alert(gettext('Error'), 
+                            Ext.String.format(gettext('xxx')));
+                    } else if (meta && meta.errorType == 'xxxxxx') {
+                        Ext.Msg.alert(gettext('Error'), 
+                            Ext.String.format(gettext('xxx {0} xxx'), '"' + meta.errorDetail + '"'));
+                    } 
+                }
+            },
+            success:function (response, options) {
+                me.successCallback && me.successCallback(response, options);
+                me.close();
+            }
+        });
+    },
+
+    load:function (options) {
+        var me = this;
+
+        var form = me.formPanel.getForm();
+
+        options = options || {};
+
+        var newopts = Ext.apply({
+            waitMsgTarget:me
+        }, options);
+
+        var createWrapper = function (successFn) {
+            Ext.apply(newopts, {
+                url:me.url,
+                method:'GET',
+                success:function (response, opts) {
+                    form.clearInvalid();
+                    me.digest = response.result.data.digest;
+                    if (successFn) {
+                        successFn(response, opts);
+                    } else {
+                        me.setValues(response.result.data);
+                    }
+                    // hack: fix ExtJS bug
+                    Ext.Array.each(me.query('radiofield'), function (f) {
+                        f.resetOriginalValue();
+                    });
+                },
+                failure:function (response, opts) {
+                    Ext.Msg.alert(gettext('Error'), response.htmlStatus, function () {
+                        me.close();
+                    });
+                }
+            });
+        };
+
+        createWrapper(options.success);
+
+        MNG.Utils.Request(newopts);
+    },
+
+    initComponent:function () {
+        var me = this;
+
+        if (!me.url) {
+            throw "no url specified";
+        }
+
+        var items = Ext.isArray(me.items) ? me.items : [ me.items ];
+
+        me.items = undefined;
+
+        me.formPanel = Ext.create('Ext.form.Panel', {
+            url:me.url,
+            method:me.method || 'PUT',
+            trackResetOnLoad:true,
+            bodyPadding:10,
+            border:false,
+            defaults:{
+                border:false
+            },
+            fieldDefaults:Ext.apply({}, me.fieldDefaults, {
+                labelWidth:100,
+                anchor:'100%'
+            }),
+            items:items
+        });
+
+        var form = me.formPanel.getForm();
+
+        var submitBtn = Ext.create('Ext.Button', {
+            text:me.create ? (me.isAdd ? gettext('增加') 
+                : gettext('创建')) 
+                : gettext('OK'),
+            disabled:!me.create,
+            handler:function () {
+                me.submit();
+            }
+        });
+
+        var resetBtn = Ext.create('Ext.Button', {
+            text:gettext('重置'),
+            disabled:true,
+            handler:function () {
+                form.reset();
+            }
+        });
+
+        var set_button_status = function () {
+            var valid = form.isValid();
+            var dirty = form.isDirty();
+            submitBtn.setDisabled(!valid || !(dirty || me.create));
+            resetBtn.setDisabled(!dirty);
+        };
+
+        form.on('dirtychange', set_button_status);
+        form.on('validitychange', set_button_status);
+
+        var colwidth = me.colwidth || 300;
+        if (me.fieldDefaults && me.fieldDefaults.labelWidth) {
+            colwidth += me.fieldDefaults.labelWidth - 100;
+        }
+
+
+        var twoColumn = items[0].column1 || items[0].column2;
+
+        if (me.subject && !me.title) {
+            me.title = MNG.Utils.dialog_title(me.subject, me.create, me.isAdd);
+        }
+
+        Ext.applyIf(me, {
+            modal:true,
+            layout:'auto',
+            width:twoColumn ? colwidth * 2 : colwidth,
+            border:false,
+            items:[ me.formPanel ],
+            buttons:me.create ? [ submitBtn ] : [ submitBtn, resetBtn ]
+        });
+
+        me.callParent();
+
+        // always mark invalid fields
+        me.on('afterlayout', function () {
+            me.isValid();
+        });
+    }
+});Ext.define('MNG.dc.LocalConfig', {
+    extend:'MNG.panel.Config',
+    alias:'widget.mngLocalConfig',
+
+    initComponent:function () {
+        var me = this;
+        me.items = [];
+
+        Ext.apply(me, {
+            title:gettext('本地配置'),
+            hstateid:'nodetab'
+        });
+
+		me.on('hide', function () {
+			me.down('#time').stopUpdate();
+		});
+		me.on('show', function () {
+			me.down('#time').startUpdate();
+		});
+		me.items.push(
+
+			{
+				icon:'/images/time.png',
+				title:gettext('时间'),
+				itemId:'time',
+				id:'time',
+				xtype:'mngTimeView',
+			}
+		);
+        me.callParent();
+    }
+});
+Ext.define('MNG.dc.TimeView', {
+    extend: 'MNG.grid.ObjectGrid',
+    alias: ['widget.mngTimeView'],
+
+    initComponent : function() {
+		var me = this;
+		
+		var run_editor = function() {
+		    var win = Ext.create('MNG.dc.TimeEdit');
+		    win.show();
+		};
+
+		Ext.applyIf(me, {
+		    url: "/mng/timezone",
+		    cwidth1: 150,
+		    interval: 1000,
+		    rows: {
+			timezone: { 
+			    header: gettext('时区'), 
+			    required: true
+			},
+			localtime: { 
+			    header: gettext('服务器时间'), 
+			    required: true
+			}
+		    },
+		    tbar: [ 
+			{
+				icon:'/images/edit.png',
+			    text: gettext("编辑"),
+			    handler: run_editor
+			}
+		    ],
+		    listeners: {
+			itemdblclick: run_editor
+		    }
+		});
+
+		me.callParent();
+
+		Ext.apply(me, {
+			startUpdate:function () {
+				if (me.isVisible()) 
+					me.rstore.startUpdate();
+			},
+			stopUpdate:function () {
+				me.rstore.stopUpdate();
+			}
+		});
+
+		me.on('beforeRender', me.rstore.startUpdate);
+		me.on('beforeShow', me.rstore.startUpdate);
+		me.on('hide', me.rstore.stopUpdate);
+		me.on('destroy', me.rstore.stopUpdate);	
+    }
+});
+Ext.define('MNG.dc.TimeEdit', {
+    extend: 'MNG.window.Edit',
+    alias: ['widget.mngTimeEdit'],
+
+    initComponent : function() {
+		var me = this;
+
+		var ipanel = Ext.create('MNG.panel.InputPanel', {
+			items:[{
+					xtype: 'combo',
+					fieldLabel: gettext('时区'),
+					labelWidth:50,
+					name: 'timezone',
+					queryMode: 'local',
+					store: new MNG.data.TimezoneStore({autoDestory: true}),
+					valueField: 'zone',
+					displayField: 'zone',
+					triggerAction: 'all',
+					forceSelection: true,
+					editable: false,
+					allowBlank: false
+			    },
+			    {
+					layout: {
+		                type:'hbox',
+		                align:'stretch'
+					},
+					border:false,
+					items:[
+						{
+							xtype:'datefield',
+							width:170,
+							margins:'0 18 0 0',
+							labelWidth:50,
+							format:'Y-m-d',
+							submitValue:false,
+							allowBlank:false,
+							fieldLabel:gettext('日期')
+						},
+						{
+							xtype:'timefield',
+							name:'time',
+							width:170,
+							labelWidth:50,
+							getSubmitData:function () {
+								var data = {};
+								var datefield = me.down('datefield');
+								data[this.getName()] = Ext.Date.format(datefield.getValue(), 'Y-m-d') + ' ' + Ext.Date.format(this.getValue(), 'H:i:s');
+								return data;
+							},
+							format:'H:i:s',
+							allowBlank:false,
+							fieldLabel:gettext('时间')
+						}
+					]
+				}],
+				tips: {
+					icon: '/images/tips.png',
+					text: gettext('注意：修改系统时间可能会导致您退出当前登陆系统！'),
+					enabled:true
+				}
+			});
+		Ext.applyIf(me, {
+		    subject: gettext('时区'),
+		    url: "/mng/timezone",
+		    fieldDefaults: {
+				labelWidth: 70
+	            },
+		    width: 400,
+		    items: [ipanel]
+		});
+
+		me.callParent();
+
+	me.load({
+		success:function (response, opts) {
+			var data = response.result.data;
+			var timezone = me.down('field[name=timezone]');
+			var datefield = me.down('datefield');
+			var timefield = me.down('timefield');
+			var time = data.localtime.split(' ');
+			timezone.setValue(data.timezone);
+			datefield.setValue(time[0]);
+			timefield.setValue(time[1]);
+			timezone.resetOriginalValue();
+			datefield.resetOriginalValue();
+			timefield.resetOriginalValue();
+		}
+	});
+    }
+});
+Ext.define("MNG.Workspace", {
 	extend:"Ext.container.Viewport", 
 
 	title :gettext('MNG Platform'),
 
+	updateLeftTree:function () {
+		var me = this;
 
+	},
     onLogin:function () {
         var me = this;
 		me.updateUserInfo();
         Ext.Function.defer(function () {
 			me.getLayout().setActiveItem('main_container');
 			var sp = Ext.state.Manager.getProvider();
+			me.down('mngNavigator').applyState(sp.get('vid'));
+			me.down('mngLocalConfig').show();			
         }, 20);
     },
 	closeWindows:function () {
@@ -649,9 +2306,15 @@ Ext.define('MNG.form.LanguageSelector', {
     setContent:function (comp) {
         var me = this;
 
-        if (comp) {
+        var cont = me.down('#content');
+        cont.removeAll(true);
 
+        if (comp) {
+            MNG.Utils.setErrorMask(cont, false);
+            comp.border = false;
+            cont.add(comp);
         }
+		cont.updateLayout();
 
     },
     updateUserInfo:function () {
@@ -680,32 +2343,25 @@ Ext.define('MNG.form.LanguageSelector', {
     updateLoginData:function (loginData) {
         var me = this;
         me.loginData = loginData;
-        MNG.CSRFPreventionToken = loginData.CSRFPreventionToken;
         MNG.UserName = loginData.username;
-        MNG.LicenseUser = loginData.license_user;
-        MNG.LicenseTrial = loginData.license_trial;
-        MNG.LicenseTime = loginData.license_time;
 
 
     },
 	showLogin:function () {
 		var me = this;
-		//MNG.Utils.authClear();
-       // MNG.Utils.userClear();
+		MNG.Utils.authClear();
+        MNG.Utils.userClear();
        
 
 		if (!me.login) {
-			console.log("zzw---111");
 			me.login = Ext.create('MNG.window.LoginWindow', {
 				viewport:me,
 				handler:function (data) {
-					console.log(data);
 					me.login = null;
 					me.updateLoginData(data);
 					me.onLogin();
 				}
 			});
-			console.log("zzw---222");
 		}
 		me.getLayout().setActiveItem('main_background');
 		me.login.show();
@@ -730,26 +2386,26 @@ Ext.define('MNG.form.LanguageSelector', {
         document.title = me.title;
         
 
-		Ext.Function.defer(function () {
-			me.showLogin();
-		}, 20);
+        if (!MNG.Utils.authOK()) {
+			Ext.Function.defer(function () {
+				me.showLogin();
+			}, 20);
+        }
+
    
 		Ext.TaskManager.start({
 			run:function () {
-				//var ticket = MNG.Utils.authOK();
-				//if (!ticket) {
-				//	return;
-				//}
+				var ticket = MNG.Utils.authOK();
+				if (!ticket) {
+					return;
+				}
 				Ext.Ajax.request({
 					url:'mng/login',
-					method:'POST',
-					params:{
-						username:"test",
-						password:"123456",
-					},					
+					method:'PUT',
+					
 					success:function (response, opts) {
 						var result = Ext.decode(response.responseText);
-						//me.updateLoginData(result.data);
+						me.updateLoginData(result.data);
 						me.onLogin();
 					}
 
@@ -821,7 +2477,55 @@ Ext.define('MNG.form.LanguageSelector', {
 							}
 						]
 					},
+					{
+						xtype:"mngNavigator",
+						region:"west",
+						width:"20%",
+						split:true,
+						//minWidth:"15%",
+						selModel:new Ext.selection.TreeModel({
+			                listeners:{
+			                    selectionchange: function (sm, selected) {
+									var comp;
+									var tlckup = {
+										localConfig:'MNG.dc.LocalConfig',
+									};
 
+									
+									if (selected.length > 0) {
+										var n = selected[0];
+										var id = n.data.id;
+
+										if (id == "localConfig") {
+											console.log("111111");
+
+                                        }	
+
+										if(!tlckup[id])
+											return;
+
+										comp = contentCache[id] ? contentCache[id] : (contentCache[id] = Ext.create(tlckup[id],{
+										   // xtype:tlckup[n.data.id],
+											mngSelNode:n,
+											workspace:me
+											//viewFilter:selview.getViewFilter()
+										}));
+										comp.reload && comp.reload();
+										me.down('#content').getLayout().setActiveItem(comp);
+									
+									}	
+																
+
+								}
+							} 
+						})
+					},					
+					{
+						xtype:'container',
+						id:'content',
+						region:'center',
+						layout:'card'
+					}
 				]
 			}
 			]

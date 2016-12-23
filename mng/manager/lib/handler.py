@@ -20,7 +20,11 @@ class BaseHandler(BaseRequestHandler):
 	#prepare函数里面可以对其他的请求先进行ticket的认证,认证通过后才允许继续
 	def prepare(self):
 		req_uri = self.request.uri
-		if (req_uri != "/mng/login" and not re.match('/mng/terminal/.*', req_uri)):
+		#allow_uri = ["/mng/login", "mng/timezone"]
+		if (req_uri != "/mng/login" and \
+			req_uri != "mng/timezone" and \
+			not re.match('/mng/terminal/.*', req_uri)):
+		
 			ticket = self.get_ticket()
 			if (ticket is None or not verify_ticket(ticket)):
 				raise exceptions.HTTPAPIError(401, error_type = 'ticket_verify_failed')		
