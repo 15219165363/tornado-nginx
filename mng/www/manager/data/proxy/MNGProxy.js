@@ -33,7 +33,19 @@ Ext.define('MNG.RestProxy', {
 			fields: [ 'key', 'value' ],
 			idProperty: 'key'
 		});
-
+		Ext.define('mng-users', {
+			extend: 'Ext.data.Model',
+			fields: [ 
+				'username','role',  'password', 'email', 'comment', 'mac','bduser',
+				{ type: 'boolean', name: 'enable' }, 
+				{ type: 'date', dateFormat: 'timestamp', name: 'expire' }
+			],
+			proxy: {
+				type: 'mng',
+				url: "/mng/user"
+			},
+			idProperty: 'username'
+		});
 
 	}
 

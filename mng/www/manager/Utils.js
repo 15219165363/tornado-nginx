@@ -332,3 +332,29 @@ Ext.define('MNG.Utils', { statics:{
     neverText:gettext('Never')
 }
 });
+
+// custom Vtypes
+Ext.apply(Ext.form.field.VTypes, {
+
+    UserName:function (v) {
+        return (/^^[A-Za-z0-9\_]{2,20}$/).test(v);
+    },
+
+    UserNameText:gettext("Allowed characters") + ": 'a-z', '0-9', 'A-Z', '_'," 
+        + "," + gettext("and CharNum") + ": [2~20]" + "," + gettext("Note:A case-insensitive"), 
+
+
+    PassWord:function (v) {
+        return (/^.{5,20}$/).test(v);
+    },
+    PassWordText:gettext("Allowed characters") + ":" 
+        + gettext("all characters") + ","
+        + gettext("and CharNum") + ":[5~20]",   
+
+    Email:function (v) {
+        return (/^[a-zA-Z0-9][a-zA-Z0-9\.\_]{5,29}\@[a-zA-Z0-9]{3,10}\.com(\.cn)?$/).test(v);
+    },
+    EmailText:gettext("MaxCharNum") + ": {<=50}",         
+
+
+});

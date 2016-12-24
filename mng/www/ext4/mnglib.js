@@ -366,7 +366,19 @@ Ext.define('MNG.Utils', { statics:{
 			fields: [ 'key', 'value' ],
 			idProperty: 'key'
 		});
-
+		Ext.define('mng-users', {
+			extend: 'Ext.data.Model',
+			fields: [ 
+				'username','role',  'password', 'email', 'comment', 'mac','bduser',
+				{ type: 'boolean', name: 'enable' }, 
+				{ type: 'date', dateFormat: 'timestamp', name: 'expire' }
+			],
+			proxy: {
+				type: 'mng',
+				url: "/mng/user"
+			},
+			idProperty: 'username'
+		});
 
 	}
 
@@ -1165,7 +1177,6 @@ Ext.define('MNG.grid.ObjectGrid', {
         var me = this;
 
         var rows = me.rows;
-        console.log("this is in MNG.grid.ObjectGrid");
         if (!me.rstore) {
             if (!me.url) {
                 throw "no url specified";
@@ -1581,6 +1592,10 @@ Ext.define('MNG.form.LanguageSelector', {
 
 					]},
 
+                    {text:gettext('用户管理'), children: [
+                        {icon: '/images/user.png',text:gettext('用户'), id:'user', leaf:true},
+                    ]},   					
+
 				]
 			}
 		});
@@ -1938,9 +1953,9 @@ Ext.define('MNG.window.LoginWindow', {
                             Ext.String.format(gettext('xxxxxx')));
                     }                  
                 } else if (response.status == 505) {
-                    if (meta && meta.errorType == 'xxx') {
+                    if (meta && meta.errorType == 'modify_vm') {
                         Ext.Msg.alert(gettext('Error'), 
-                            Ext.String.format(gettext('xxx')));
+                            Ext.String.format(gettext('modify VM failed, VM is running')));
                     }
                 } else if (response.status == 400) {
                     if (meta && meta.errorType == 'xxx') {
@@ -2264,6 +2279,430 @@ Ext.define('MNG.dc.TimeEdit', {
 	});
     }
 });
+Ext.define('MNG.dc.UserEdit', {
+    extend: 'MNG.window.Edit',
+    alias: ['widget.mngDcUserEdit'],
+
+    isAdd: true,
+	initComponent: function () {
+		var me = this;
+		var method, url, realm;
+		me.create = !me.username;
+        if (me.create) {
+            url = '/mng/user';
+            method = 'POST';
+        } else {
+            url = '/mng/user/' + me.username;
+            method = 'PUT';
+		}
+
+		var verifypw;
+		var pwfield;
+
+		var validate_pw = function() {
+			if (verifypw.getValue() !== pwfield.getValue()) {
+			return gettext("Passwords does not match");
+			}
+			return true;
+		};
+
+		verifypw = Ext.createWidget('textfield', { 
+			inputType: 'password',
+			fieldLabel: gettext('Confirm Password'), 
+			name: 'verifypassword',
+			disabled: !me.create,
+			hidden: !me.create,
+			submitValue: false,
+			vtype:'Password',
+			validator:validate_pw
+		});
+
+		pwfield = Ext.createWidget('textfield', { 
+			inputType: 'password',
+			fieldLabel: gettext('Password'), 
+			disabled: !me.create,
+			hidden: !me.create,
+			name: 'password',
+			allowBlank: false,
+			vtype:'Password',
+			validator:validate_pw
+		});
+
+		var batch_num = Ext.create('Ext.form.NumberField', {
+			fieldLabel:gettext('Batch no'),
+			name:'batch_num',
+			value:1,
+			hidden:!me.create,
+			allowBlank: false,
+			allowDecimals: false,
+			vtype:'VMnumber'
+		});
+
+
+		var column1 = [
+			{
+				xtype: me.create ? 'textfield' : 'displayfield',
+				height: 22, // hack: set same height as text fields
+				name: 'username',
+				fieldLabel: gettext('Username'),
+				maxLength: 20,
+				allowBlank: false,
+				vtype:'Username',
+				submitValue: me.create ? true : false
+			},
+			pwfield, verifypw,
+			me.create ? {
+				xtype:'fieldcontainer',
+				layout:'hbox',
+				defaultType:'radiofield',
+				defaults: {
+					flex:1
+				},
+				fieldLabel:gettext('Role'),
+				items:[
+					{	boxLabel:gettext('Administrator'), name:'role', inputValue:'Administrator'},
+					{ 	boxLabel:gettext('Local Domain User'), 
+						name:'role', 
+						checked:true,
+						inputValue:'Terminal',				
+						handler:function (checkbox, checked) {
+							batch_num.setVisible(checked);
+							bduser.setVisible(checked);
+						}
+					}
+				]
+			} : {
+				xtype:'displayfield',
+				name:'role',
+				fieldLabel: gettext('Role'),
+				renderer:function (value) {
+					if (value == "Terminal")
+                        return gettext("Local Domain User")
+					return gettext(value)
+				}
+			},
+			bduser,//by zzw
+		];
+
+        var column2 = [
+			{
+				xtype: 'datefield',
+				name: 'expire',
+				emptyText: 'never',
+				format: 'Y-m-d',
+				submitFormat: 'U',
+				fieldLabel: gettext('Expire')
+			},
+			{
+				xtype: 'textfield',
+				name: 'comment',
+				vtype:'DescriptionId',
+				fieldLabel: gettext('Description')
+			},
+
+			batch_num,
+			{
+				xtype: 'textfield',
+				name: 'email',
+				vtype:'Email',
+				fieldLabel: 'E-Mail',
+				vtype: 'Email',
+				hidden: true
+			}
+		];
+
+		var ipanel = Ext.create('MNG.panel.InputPanel', {
+			tips:{
+				enabled:true,
+				icon: 'images/tips.png',
+				text: gettext('Create / Edit User')
+			},
+			column1: column1,
+			column2: column2,
+			onGetValues: function(values) {
+				// hack: ExtJS datefield does not submit 0, so we need to set that
+				if (!values.expire) {
+					values.expire = 0;
+				}
+
+				//values.user= encodeURIComponent(values.user);
+
+				if (!values.password) {
+					delete values.password;
+				}
+
+				return values;
+			}
+		});
+
+		Ext.applyIf(me, {
+			subject: gettext('User'),
+			url: url,
+			method: method,
+			items: [ ipanel ]
+		});
+
+		me.callParent();
+
+		if (!me.create) {
+			me.load({
+			success: function(response, options) {
+				var data = response.result.data;
+				if (Ext.isDefined(data.expire)) {
+					if (data.expire) {
+						data.expire = new Date(data.expire * 1000);
+					} else {
+						// display 'never' instead of '1970-01-01'
+						data.expire = null;
+					}
+				}
+				if (data.role == 'Administrator') {
+					data.bduser = 0;
+					bduser.setVisible(false)
+				}			
+				me.setValues(data);
+			}});
+		}
+    }
+});
+Ext.define('MNG.dc.UserView', {
+    extend:'Ext.grid.GridPanel',
+
+    alias:['widget.mngDcUserView'],
+
+	reload: function () {
+		this.store.load();
+	},
+    initComponent:function () {
+        var me = this;
+        var store = new Ext.data.Store({
+            id:"users",
+            model:'mng-users',
+            sorters:{
+                property:'username',
+                order:'DESC'
+            }
+        });
+
+        //多选，编辑框变灰，
+        var single_select = function(sec) {
+            return sm.getSelection().length == 1;
+        }
+
+        var reload = function () {
+            store.load();
+        };
+        //var sm = Ext.create('Ext.selection.RowModel');
+        var sm = Ext.create('Ext.selection.RowModel', {mode:'MULTI'});
+
+        /*
+		var run_editor = function () {
+            var rec = sm.getSelection()[0];
+            if (!rec || rec.data.username == 'root') {
+                return;
+            }
+
+            var win = Ext.create('MNG.dc.UserEdit', {
+                username:rec.data.username
+            });
+            win.on('destroy', reload);
+            win.show();
+		};
+        var edit_btn = new MNG.button.Button({
+            icon:'/images/user_edit.png',
+            text:gettext('Edit'),
+            disabled:true,
+            enableFn:function (rec) {
+                return rec.data.username != 'root';
+            },
+            selModel:sm,
+            enableFn: single_select,
+            handler:run_editor
+        });
+        var remove_btn = new MNG.button.Button({
+            icon:'/images/user_delete.png',
+            text:gettext('Remove'),
+            disabled:true,
+            selModel:sm,
+            enableFn:function (rec) {
+                return rec.data.username != 'root';
+            },
+            confirmMsg:function (rec) {
+                var items = sm.getSelection();
+                if (items.length > 1){
+                    return Ext.String.format(gettext('Are you sure you want to remove selected user?'));
+                }
+                return Ext.String.format(gettext('Are you sure you want to remove user {0}?'),
+                    "'" + rec.data.username + "'");
+            },
+            handler:function (btn, event, rec) {
+                var items = sm.getSelection();
+                for (var i = 0; i < items.length; i++) {
+                    data = items[i].data.username;
+                    MNG.Utils.Request({
+                        url:'/mng/user/' + data,
+                        method:'DELETE',
+                        waitMsgTarget:me,
+                        callback:function () {
+                            reload();
+                        },
+                        failure:function (response, opts) {
+    						var result = Ext.decode(response.responseText);
+    						if (result.meta && result.meta.errorType == 'root')
+    							Ext.Msg.alert(gettext('Error'), 
+                                    gettext('can not delete root account'));
+                        }
+                    });
+                }
+            }
+        });
+        var pwchange_btn = new MNG.button.Button({
+            text:gettext('Change Password'),
+            icon:'/images/password.png',
+            disabled:true,
+            selModel:sm,
+            handler:function (btn, event, rec) {
+                var win = Ext.create('MNG.dc.PasswordEdit', {
+                    username:rec.data.username
+                });
+                win.on('destroy', reload);
+                win.show();
+            }
+        });
+        var filter_node = Ext.create('MNG.form.Textfield', {
+            fieldLabel: gettext('Contained Username'),
+            margin:'0 0 0 50',
+            //width:200,
+            labelAlign:'right',
+            name: 'contain_name',
+            minWidth:300,
+            enableKeyEvents:true,
+            listeners:{
+                keyup:function (field, e) {
+                    var v = field.getValue();
+                    textfilter = v.toLowerCase();
+                    filter_task.delay(300);
+                }
+            }
+        });
+
+*/
+        var rmlist = [];
+        var filter_task = new Ext.util.DelayedTask(function () {
+            store.suspendEvents();
+            store.add(rmlist);
+            rmlist = [];
+            store.each(function (item) {
+                if (textfilter && !name_filter(item)) {
+                    rmlist.push(item);
+                }
+            });
+            if (rmlist.length)
+                store.remove(rmlist);
+            store.resumeEvents();
+            store.fireEvent('datachanged', store);
+            store.fireEvent('refresh', store);
+            store.clearFilter();
+            store.filters.add(new Ext.util.Filter({filterFn: function(item) {
+                    return decodeURIComponent(item.get("username")).match(textfilter) != null; 
+                }
+            }));
+        });
+
+        var name_filter = function (item) {
+            var match = false;
+            Ext.each(['username'], function (field) {
+                var v = decodeURIComponent(item.data[field]);
+                if (v !== undefined) {
+                    v = v.toLowerCase();
+                    if (v.indexOf(textfilter) >= 0) {
+                        match = true;
+                        return false;
+                    }
+                }
+            });
+            return match;
+        };
+        var tbar = [
+            {
+                icon:'/images/user_add.png',
+                text:gettext('Add'),
+                //disabled:!caps.access['User.Modify'],
+                handler:function () {
+                    var win = Ext.create('MNG.dc.UserEdit');
+                    win.on('destroy', reload);
+                    win.show();
+                }
+            },
+         //   edit_btn,
+          //  remove_btn,
+         //   pwchange_btn, 
+         //   filter_node            
+
+        ];
+		
+        Ext.apply(me, {
+			title:gettext('User'),
+            store:store,
+            selModel:sm,
+            stateful:false,
+            tbar:tbar,
+            viewConfig:{
+                trackOver:false
+            },
+            columns:[
+                {
+                    header:gettext('Username'),
+                    width:200,
+                    sortable:true,
+                    //renderer:render_username,
+                    dataIndex:'username'
+                },
+                {
+                    header:gettext('Role'),
+                    width:200,
+                    sortable:true,
+                    dataIndex:'role',
+					renderer:function (value) {
+                        if (value == "Terminal")
+                            return gettext("Local Domain User")
+						return gettext(value)
+					}
+                },
+                {
+                    header:gettext('Enabled'),
+                    width:80,
+                    sortable:true,
+                    renderer:MNG.Utils.format_boolean,
+                    dataIndex:'enable'
+                },
+                {
+                    header:gettext('Expire'),
+                    width:200,
+                    sortable:true,
+                    renderer:MNG.Utils.format_expire,
+                    dataIndex:'expire'
+                },
+                {
+                    //id:'comment',
+                    header:gettext('Description'),
+                    sortable:true,
+                    dataIndex:'comment',
+                    flex:1
+                },
+
+			],
+            listeners:{
+                beforeRender:reload,
+                itemdblclick:run_editor
+            }
+        });
+		me.callParent();
+	}
+});
+
+
+
 Ext.define("MNG.Workspace", {
 	extend:"Ext.container.Viewport", 
 
@@ -2488,6 +2927,7 @@ Ext.define("MNG.Workspace", {
 			                    selectionchange: function (sm, selected) {
 									var comp;
 									var tlckup = {
+										user:'MNG.dc.UserView',
 										localConfig:'MNG.dc.LocalConfig',
 									};
 
@@ -2496,8 +2936,9 @@ Ext.define("MNG.Workspace", {
 										var n = selected[0];
 										var id = n.data.id;
 
+										console.log(id)
 										if (id == "localConfig") {
-											console.log("111111");
+											//console.log("111111");
 
                                         }	
 

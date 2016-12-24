@@ -222,6 +222,7 @@ Ext.define("MNG.Workspace", {
 			                    selectionchange: function (sm, selected) {
 									var comp;
 									var tlckup = {
+										user:'MNG.dc.UserView',
 										localConfig:'MNG.dc.LocalConfig',
 									};
 
@@ -230,6 +231,7 @@ Ext.define("MNG.Workspace", {
 										var n = selected[0];
 										var id = n.data.id;
 
+										console.log(id)
 										if (id == "localConfig") {
 											//console.log("111111");
 

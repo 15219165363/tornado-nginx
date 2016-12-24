@@ -20,6 +20,8 @@ JSSRC= 									\
 	dc/LocalConfig.js               	\
 	dc/TimeView.js               		\
 	dc/TimeEdit.js               		\
+	dc/UserEdit.js               		\
+	dc/UserView.js               		\
 	Workspace.js
 
 mnglib.js: ${JSSRC}
