@@ -331,7 +331,34 @@ Ext.define('MNG.Utils', { statics:{
     stoppedText:gettext('Stopped'),
     neverText:gettext('Never')
 }
-});Ext.define('MNG.RestProxy', {
+});
+
+// custom Vtypes
+Ext.apply(Ext.form.field.VTypes, {
+
+    UserName:function (v) {
+        return (/^^[A-Za-z0-9\_]{2,20}$/).test(v);
+    },
+
+    UserNameText:gettext("Allowed characters") + ": 'a-z', '0-9', 'A-Z', '_'," 
+        + "," + gettext("and CharNum") + ": [2~20]" + "," + gettext("Note:A case-insensitive"), 
+
+
+    PassWord:function (v) {
+        return (/^.{5,20}$/).test(v);
+    },
+    PassWordText:gettext("Allowed characters") + ":" 
+        + gettext("all characters") + ","
+        + gettext("and CharNum") + ":[5~20]",   
+
+    Email:function (v) {
+        return (/^[a-zA-Z0-9][a-zA-Z0-9\.\_]{5,29}\@[a-zA-Z0-9]{3,10}\.com(\.cn)?$/).test(v);
+    },
+    EmailText:gettext("MaxCharNum") + ": {<=50}",         
+
+
+});
+Ext.define('MNG.RestProxy', {
     extend: 'Ext.data.RestProxy',
     alias : 'proxy.mng',
 
@@ -2301,41 +2328,40 @@ Ext.define('MNG.dc.UserEdit', {
 
 		var validate_pw = function() {
 			if (verifypw.getValue() !== pwfield.getValue()) {
-			return gettext("Passwords does not match");
+			return gettext("两次输入密码不一致");
 			}
 			return true;
 		};
 
 		verifypw = Ext.createWidget('textfield', { 
 			inputType: 'password',
-			fieldLabel: gettext('Confirm Password'), 
+			fieldLabel: gettext('确认密码'), 
 			name: 'verifypassword',
 			disabled: !me.create,
 			hidden: !me.create,
 			submitValue: false,
-			vtype:'Password',
+			vtype:'PassWord',
 			validator:validate_pw
 		});
 
 		pwfield = Ext.createWidget('textfield', { 
 			inputType: 'password',
-			fieldLabel: gettext('Password'), 
+			fieldLabel: gettext('密码'), 
 			disabled: !me.create,
 			hidden: !me.create,
 			name: 'password',
 			allowBlank: false,
-			vtype:'Password',
+			vtype:'PassWord',
 			validator:validate_pw
 		});
 
 		var batch_num = Ext.create('Ext.form.NumberField', {
-			fieldLabel:gettext('Batch no'),
+			fieldLabel:gettext('批量创建'),
 			name:'batch_num',
 			value:1,
 			hidden:!me.create,
 			allowBlank: false,
 			allowDecimals: false,
-			vtype:'VMnumber'
 		});
 
 
@@ -2344,10 +2370,10 @@ Ext.define('MNG.dc.UserEdit', {
 				xtype: me.create ? 'textfield' : 'displayfield',
 				height: 22, // hack: set same height as text fields
 				name: 'username',
-				fieldLabel: gettext('Username'),
+				fieldLabel: gettext('用户名'),
 				maxLength: 20,
 				allowBlank: false,
-				vtype:'Username',
+				vtype:'UserName',
 				submitValue: me.create ? true : false
 			},
 			pwfield, verifypw,
@@ -2358,30 +2384,28 @@ Ext.define('MNG.dc.UserEdit', {
 				defaults: {
 					flex:1
 				},
-				fieldLabel:gettext('Role'),
+				fieldLabel:gettext('角色'),
 				items:[
-					{	boxLabel:gettext('Administrator'), name:'role', inputValue:'Administrator'},
-					{ 	boxLabel:gettext('Local Domain User'), 
+					{	boxLabel:gettext('管理员'), name:'role', inputValue:'Administrator'},
+					{ 	boxLabel:gettext('本地域用户'), 
 						name:'role', 
 						checked:true,
 						inputValue:'Terminal',				
 						handler:function (checkbox, checked) {
 							batch_num.setVisible(checked);
-							bduser.setVisible(checked);
 						}
 					}
 				]
 			} : {
 				xtype:'displayfield',
 				name:'role',
-				fieldLabel: gettext('Role'),
+				fieldLabel: gettext('角色'),
 				renderer:function (value) {
 					if (value == "Terminal")
-                        return gettext("Local Domain User")
+                        return gettext("本地域用户")
 					return gettext(value)
 				}
 			},
-			bduser,//by zzw
 		];
 
         var column2 = [
@@ -2391,13 +2415,12 @@ Ext.define('MNG.dc.UserEdit', {
 				emptyText: 'never',
 				format: 'Y-m-d',
 				submitFormat: 'U',
-				fieldLabel: gettext('Expire')
+				fieldLabel: gettext('过期时间')
 			},
 			{
 				xtype: 'textfield',
 				name: 'comment',
-				vtype:'DescriptionId',
-				fieldLabel: gettext('Description')
+				fieldLabel: gettext('描述')
 			},
 
 			batch_num,
@@ -2406,7 +2429,6 @@ Ext.define('MNG.dc.UserEdit', {
 				name: 'email',
 				vtype:'Email',
 				fieldLabel: 'E-Mail',
-				vtype: 'Email',
 				hidden: true
 			}
 		];
@@ -2415,7 +2437,7 @@ Ext.define('MNG.dc.UserEdit', {
 			tips:{
 				enabled:true,
 				icon: 'images/tips.png',
-				text: gettext('Create / Edit User')
+				text: gettext('创建/编辑用户')
 			},
 			column1: column1,
 			column2: column2,
@@ -2436,7 +2458,7 @@ Ext.define('MNG.dc.UserEdit', {
 		});
 
 		Ext.applyIf(me, {
-			subject: gettext('User'),
+			subject: gettext('用户'),
 			url: url,
 			method: method,
 			items: [ ipanel ]
@@ -2495,7 +2517,7 @@ Ext.define('MNG.dc.UserView', {
         //var sm = Ext.create('Ext.selection.RowModel');
         var sm = Ext.create('Ext.selection.RowModel', {mode:'MULTI'});
 
-        /*
+        
 		var run_editor = function () {
             var rec = sm.getSelection()[0];
             if (!rec || rec.data.username == 'root') {
@@ -2508,85 +2530,7 @@ Ext.define('MNG.dc.UserView', {
             win.on('destroy', reload);
             win.show();
 		};
-        var edit_btn = new MNG.button.Button({
-            icon:'/images/user_edit.png',
-            text:gettext('Edit'),
-            disabled:true,
-            enableFn:function (rec) {
-                return rec.data.username != 'root';
-            },
-            selModel:sm,
-            enableFn: single_select,
-            handler:run_editor
-        });
-        var remove_btn = new MNG.button.Button({
-            icon:'/images/user_delete.png',
-            text:gettext('Remove'),
-            disabled:true,
-            selModel:sm,
-            enableFn:function (rec) {
-                return rec.data.username != 'root';
-            },
-            confirmMsg:function (rec) {
-                var items = sm.getSelection();
-                if (items.length > 1){
-                    return Ext.String.format(gettext('Are you sure you want to remove selected user?'));
-                }
-                return Ext.String.format(gettext('Are you sure you want to remove user {0}?'),
-                    "'" + rec.data.username + "'");
-            },
-            handler:function (btn, event, rec) {
-                var items = sm.getSelection();
-                for (var i = 0; i < items.length; i++) {
-                    data = items[i].data.username;
-                    MNG.Utils.Request({
-                        url:'/mng/user/' + data,
-                        method:'DELETE',
-                        waitMsgTarget:me,
-                        callback:function () {
-                            reload();
-                        },
-                        failure:function (response, opts) {
-    						var result = Ext.decode(response.responseText);
-    						if (result.meta && result.meta.errorType == 'root')
-    							Ext.Msg.alert(gettext('Error'), 
-                                    gettext('can not delete root account'));
-                        }
-                    });
-                }
-            }
-        });
-        var pwchange_btn = new MNG.button.Button({
-            text:gettext('Change Password'),
-            icon:'/images/password.png',
-            disabled:true,
-            selModel:sm,
-            handler:function (btn, event, rec) {
-                var win = Ext.create('MNG.dc.PasswordEdit', {
-                    username:rec.data.username
-                });
-                win.on('destroy', reload);
-                win.show();
-            }
-        });
-        var filter_node = Ext.create('MNG.form.Textfield', {
-            fieldLabel: gettext('Contained Username'),
-            margin:'0 0 0 50',
-            //width:200,
-            labelAlign:'right',
-            name: 'contain_name',
-            minWidth:300,
-            enableKeyEvents:true,
-            listeners:{
-                keyup:function (field, e) {
-                    var v = field.getValue();
-                    textfilter = v.toLowerCase();
-                    filter_task.delay(300);
-                }
-            }
-        });
 
-*/
         var rmlist = [];
         var filter_task = new Ext.util.DelayedTask(function () {
             store.suspendEvents();
@@ -2626,23 +2570,18 @@ Ext.define('MNG.dc.UserView', {
         var tbar = [
             {
                 icon:'/images/user_add.png',
-                text:gettext('Add'),
-                //disabled:!caps.access['User.Modify'],
+                text:gettext('增加'),
                 handler:function () {
                     var win = Ext.create('MNG.dc.UserEdit');
                     win.on('destroy', reload);
                     win.show();
                 }
-            },
-         //   edit_btn,
-          //  remove_btn,
-         //   pwchange_btn, 
-         //   filter_node            
+            },         
 
         ];
 		
         Ext.apply(me, {
-			title:gettext('User'),
+			title:gettext('用户信息'),
             store:store,
             selModel:sm,
             stateful:false,
@@ -2652,14 +2591,13 @@ Ext.define('MNG.dc.UserView', {
             },
             columns:[
                 {
-                    header:gettext('Username'),
+                    header:gettext('用户名'),
                     width:200,
                     sortable:true,
-                    //renderer:render_username,
                     dataIndex:'username'
                 },
                 {
-                    header:gettext('Role'),
+                    header:gettext('角色'),
                     width:200,
                     sortable:true,
                     dataIndex:'role',
@@ -2670,22 +2608,14 @@ Ext.define('MNG.dc.UserView', {
 					}
                 },
                 {
-                    header:gettext('Enabled'),
-                    width:80,
-                    sortable:true,
-                    renderer:MNG.Utils.format_boolean,
-                    dataIndex:'enable'
-                },
-                {
-                    header:gettext('Expire'),
+                    header:gettext('过期时间'),
                     width:200,
                     sortable:true,
                     renderer:MNG.Utils.format_expire,
                     dataIndex:'expire'
                 },
                 {
-                    //id:'comment',
-                    header:gettext('Description'),
+                    header:gettext('描述'),
                     sortable:true,
                     dataIndex:'comment',
                     flex:1

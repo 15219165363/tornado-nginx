@@ -14,6 +14,7 @@ import time
 AUTH_PRI_KEY = "/etc/mng/priv/authkey.key"
 AUTH_PUB_KEY = "/etc/mng/priv/authkey.pub";
 
+
 def init_logger(name, level = "DEBUG", f = None):
 	LEVEL = getattr(logging, level.upper(), None)
 	logger = logging.getLogger(name)
@@ -65,3 +66,6 @@ def verify_ticket(ticket):
 				return True
 
 	return False;
+
+
+
