@@ -2603,7 +2603,7 @@ Ext.define('MNG.dc.UserView', {
                     dataIndex:'role',
 					renderer:function (value) {
                         if (value == "Terminal")
-                            return gettext("Local Domain User")
+                            return gettext("本地域用户")
 						return gettext(value)
 					}
                 },

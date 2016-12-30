@@ -186,15 +186,17 @@ class MysqlApi(object):
 	#获取数据库信息
 	def select_info(self, db_name=None, tb_name=None):
 		try:
+			db = None
 			if db_name and tb_name:
-				db = None
 				db = self.open_db(db_name)
 				cursor = db.cursor()	
 				cmd_sql = "select * from %s" %tb_name
 				cursor.execute(cmd_sql)
 				aaa = cursor.fetchall()
-				print aaa
+				return  aaa
 				
 				self.close_db(db)
 		except Exception,e:
+			self.close_db(db)
+			return None
 			logger_all.error("select_info->err = %s" %str(e))	

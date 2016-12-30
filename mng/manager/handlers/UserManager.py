@@ -18,8 +18,22 @@ class UserHandler(APIHandler):
 
 	def get(self):
 		try:
-			u = [{"comment": "Administrator", "username": "root", "enable": "1", "bduser": 0, "expire": 0, "role": "Administrator", "email": "zzz@xxx.com"}];
+			db_name = "MNGDB"
+			tb_name = "user_info"
+			u = []
+			infos = mysql_api.select_info(db_name, tb_name)
+			infos = list(infos)
+			print infos
 
+			for key in infos:
+				info = {}
+				info['username'] = key[1]
+				info['role'] = key[3]
+				info['expire'] = key[4]
+				info['comment'] = key[5]
+				u.append(info)
+
+			#u = [{"comment": "Administrator", "username": "root", "expire": 0, "role": "Administrator"}];
 			self.finish(u);
 			return;
 
