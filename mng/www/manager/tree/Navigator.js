@@ -56,7 +56,11 @@ Ext.define('MNG.tree.Navigator', {
 
                     {text:gettext('用户管理'), children: [
                         {icon: '/images/user.png',text:gettext('用户'), id:'user', leaf:true},
-                    ]},   					
+                    ]},
+
+                    {text:gettext('服务器管理'), children: [
+                        {icon: '/images/server.gif',text:gettext('服务器信息'), id:'serverManager', leaf:true},
+                    ]},                        					
 
 				]
 			}

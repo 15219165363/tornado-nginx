@@ -396,7 +396,7 @@ Ext.define('MNG.RestProxy', {
 		Ext.define('mng-users', {
 			extend: 'Ext.data.Model',
 			fields: [ 
-				'username','role',  'password', 'email', 'comment', 'mac','bduser',
+				'username','role',  'password', 'comment', 'mac',
 				{ type: 'boolean', name: 'enable' }, 
 				{ type: 'date', dateFormat: 'timestamp', name: 'expire' }
 			],
@@ -406,6 +406,16 @@ Ext.define('MNG.RestProxy', {
 			},
 			idProperty: 'username'
 		});
+
+		Ext.define('mng-server-manager', {
+			extend: "Ext.data.Model",
+			fields: ['uuid', 'cpu', 'iowait'],
+			proxy: {
+				type: 'mng',
+				url:'/mng/server'
+			},
+			idProperty:'server-manager'
+		});		
 
 	}
 
@@ -1621,7 +1631,11 @@ Ext.define('MNG.form.LanguageSelector', {
 
                     {text:gettext('用户管理'), children: [
                         {icon: '/images/user.png',text:gettext('用户'), id:'user', leaf:true},
-                    ]},   					
+                    ]},
+
+                    {text:gettext('服务器管理'), children: [
+                        {icon: '/images/server.gif',text:gettext('服务器信息'), id:'serverManager', leaf:true},
+                    ]},                        					
 
 				]
 			}
@@ -2603,7 +2617,7 @@ Ext.define('MNG.dc.UserView', {
                     dataIndex:'role',
 					renderer:function (value) {
                         if (value == "Terminal")
-                            return gettext("本地域用户")
+                            return gettext("Local Domain User")
 						return gettext(value)
 					}
                 },
@@ -2633,6 +2647,131 @@ Ext.define('MNG.dc.UserView', {
 
 
 
+Ext.define('MNG.dc.ServerEdit', {
+    extend: 'MNG.window.Edit',
+    alias: ['widget.mngDcServerEdit'],
+
+    isAdd: true,
+	initComponent: function () {
+		var me = this;
+		var method, url;
+
+        url = '/mng/server';
+        method = 'POST';
+
+		var ipanel = Ext.create('MNG.panel.InputPanel', {
+			tips:{
+				enabled:true,
+				icon: 'images/tips.png',
+				text: gettext('服务器管理')
+			},
+			items:[
+
+			]
+		});
+		Ext.applyIf(me, {
+			url: url,
+			width:350,
+			method: method,
+			items: [ ipanel ]
+		});
+		me.callParent();
+		if (!me.create) me.load();
+	}
+});
+Ext.define('MNG.dc.ServerView', {
+    extend:'Ext.grid.GridPanel',
+
+    alias:['widget.mngDcServerView'],
+
+    initComponent:function () {
+        var me = this;
+        var server_store = new MNG.data.UpdateStore({
+            storeid:"servers",
+            model:'mng-server-manager',
+            interval:5000,
+            sorters:{
+                property:'serverid',
+                order:'DESC'
+            },
+            proxy: {
+                type:'mng',
+                url:'/mng/server'
+            }
+        });
+        var store = Ext.create('MNG.data.DiffStore', {
+            rstore:server_store,
+            appendAtStart:true
+        });
+        var reload = function () {
+            server_store.load();
+        };
+        var sm = Ext.create('Ext.selection.RowModel');
+		var run_editor = function () {
+            var rec = sm.getSelection()[0];
+
+            var win = Ext.create('MNG.dc.ServerEdit', {
+                ip:rec.data.ip
+            });
+            win.on('destroy', reload);
+            win.show();
+		};
+
+        var tbar = [
+            {
+                icon:'/images/edit.png',
+                text: gettext("编辑"),
+                disabled:true,
+                selModel:sm,
+                handler: run_editor
+            }
+
+        ];
+		
+        Ext.apply(me, {
+			title:gettext('服务器信息'),
+            store:store,
+            selModel:sm,
+            stateful:false,
+            tbar:tbar,
+            reload:reload,
+            viewConfig:{
+                preserveScrollOnRefresh:true,
+                trackOver:false
+            },
+            columns:[
+                {
+                    header:gettext('UUID'),
+					flex:2,
+                    sortable:true,
+                    dataIndex:'uuid'
+                },
+                {
+                    header:gettext('CPU使用率'),
+					flex:1,
+                    sortable:true,
+                    //renderer:render_realm,
+                    dataIndex:'cpu'
+                },
+                {
+                    header:gettext('IO使用率'),
+					flex:1,
+                    width:250,
+                    sortable:true,
+                    dataIndex:'iowait'
+                },
+			],
+            listeners:{
+                itemdblclick:run_editor,
+                beforeRender:server_store.startUpdate,
+                beforeShow:server_store.startUpdate,
+                hide:server_store.stopUpdate,
+                destroy:server_store.stopUpdate
+            }
+        });
+		me.callParent();
+	}
+});
 Ext.define("MNG.Workspace", {
 	extend:"Ext.container.Viewport", 
 
@@ -2859,6 +2998,7 @@ Ext.define("MNG.Workspace", {
 									var tlckup = {
 										user:'MNG.dc.UserView',
 										localConfig:'MNG.dc.LocalConfig',
+										serverManager:'MNG.dc.ServerView',
 									};
 
 									

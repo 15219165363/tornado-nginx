@@ -36,7 +36,7 @@ Ext.define('MNG.RestProxy', {
 		Ext.define('mng-users', {
 			extend: 'Ext.data.Model',
 			fields: [ 
-				'username','role',  'password', 'email', 'comment', 'mac','bduser',
+				'username','role',  'password', 'comment', 'mac',
 				{ type: 'boolean', name: 'enable' }, 
 				{ type: 'date', dateFormat: 'timestamp', name: 'expire' }
 			],
@@ -46,6 +46,16 @@ Ext.define('MNG.RestProxy', {
 			},
 			idProperty: 'username'
 		});
+
+		Ext.define('mng-server-manager', {
+			extend: "Ext.data.Model",
+			fields: ['uuid', 'cpu', 'iowait'],
+			proxy: {
+				type: 'mng',
+				url:'/mng/server'
+			},
+			idProperty:'server-manager'
+		});		
 
 	}
 

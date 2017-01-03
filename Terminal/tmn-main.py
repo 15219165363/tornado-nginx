@@ -1,63 +1,40 @@
 # -*- coding: utf-8 -*-
 #
-#
-
-import requests
-import subprocess
 import re
 import os
-import threading
+import sys
 import time
 import json
-import sys
+import socket
+import requests
+import threading
+import functools
+import subprocess
 
+from ServerInfo import *
+from worker import worker
 
-def get_mac_info():
-	mac = "11:22:33:44:55"
-	def get_if():
-		try:
-			p = subprocess.Popen((["cat", "/proc/net/dev"]), stdout = subprocess.PIPE)
-			lines = p.stdout.readlines()	
+worker.daemon = True
+worker.start()
 
-		except Exception, e:
-			print 'get net info failure', str(e)
-			return None
-		
-		netif = None
-		for l in lines:
-			if l.find(':') != -1:
-				xx = l.split(':')[0].strip()
-				if xx == 'lo' or re.search('^w',xx):
-					continue
-				netif = xx
-				break
-
-		return netif
-
+def create_udp(host="127.0.0.1", port=8081, uuid="000-000-000"):
 	try:
-		netif = get_if()
-		if not netif:
-			return mac
-
-		p = subprocess.Popen((["ifconfig", netif]), stdout = subprocess.PIPE)
-		lines = p.stdout.readlines()	
-
-	except Exception, e:
-		return mac
-
-	for l in lines:
-		xx = l.strip()
-
-		if xx.startswith('ether'):
-			reret = re.search(r"ether (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}) ", xx)
-			mac = reret.group(1)
-
-		if xx.find("HWaddr") > 0:
-			reret = re.match(r'(.*)(([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})$', xx)
-			mac = reret.group(2)				
-
-	return mac
-
+		
+		s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+		
+		while True:
+			udp_info={}
+			cpu_iowait_info = get_cpu_iowait_info()
+			udp_info["uuid"] = uuid
+			udp_info["cpu"] = cpu_iowait_info.get("cpu", None)
+			udp_info["iowait"] = cpu_iowait_info.get("wait", None)
+			udp_info = str(udp_info)
+			s.sendto(udp_info,(host,port))
+			time.sleep(10)
+			
+	except Exception,e:
+		print("create_udp->err=%s" %str(e))
+                   
 def on_keepalive_ret(ret):
 	try:
 		ret = ret.json()
@@ -174,6 +151,16 @@ def user_login(ip = None):
 		print str(e)
 		return
 
+#if __name__ == "__main__":
+host = "192.168.100.234"
+port = 8081
+udp_info = {}
 
-user_login()
+uuid = get_uuid()
+udp_info["uuid"] = uuid
+#user_login()
+
+#worker.put_work(functools.partial(create_udp, host=host, port=8081, udp_info=udp_info))		
+create_udp(host, 8081, uuid)
+
 

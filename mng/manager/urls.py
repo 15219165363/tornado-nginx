@@ -20,7 +20,7 @@ handlers = []
 ui_modules = {}
 
 # the module names in handlers folder
-handler_names = ["form", "terminal", "LocalConfig", "UserManager"]
+handler_names = ["form", "terminal", "LocalConfig", "UserManager", "ServerManager"]
 
 
 def _generate_handler_patterns(root_module, handler_names, prefix="/mng"):

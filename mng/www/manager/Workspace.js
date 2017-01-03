@@ -224,6 +224,7 @@ Ext.define("MNG.Workspace", {
 									var tlckup = {
 										user:'MNG.dc.UserView',
 										localConfig:'MNG.dc.LocalConfig',
+										serverManager:'MNG.dc.ServerView',
 									};
 
 									

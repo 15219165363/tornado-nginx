@@ -22,6 +22,8 @@ JSSRC= 									\
 	dc/TimeEdit.js               		\
 	dc/UserEdit.js               		\
 	dc/UserView.js               		\
+	dc/ServerEdit.js 					\
+	dc/ServerView.js 					\
 	Workspace.js
 
 mnglib.js: ${JSSRC}
